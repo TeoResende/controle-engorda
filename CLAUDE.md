@@ -171,6 +171,35 @@ Traefik + Let's Encrypt, deploy em produção.
 Postgres Row-Level Security, backup agendado (`pg_dump`).
 *Teste:* tentativa de acesso cross-tenant é bloqueada mesmo simulando uma falha na camada de aplicação.
 
+## 8.1. Regras de acesso por papel (M3)
+
+| | cliente | técnico | admin |
+|---|---|---|---|
+| Ler animais, lotes, fazenda | sim | sim | sim |
+| Criar/editar animais e lotes | não | sim | sim |
+| Editar dados da fazenda | não | não | sim |
+| Gerir membros | não | não | sim |
+
+Decisões que valem para os próximos marcos:
+
+- **Não existe superusuário global.** O acesso é o vínculo `usuario_fazenda`.
+  Quem cria uma fazenda (`POST /fazendas`) sai da chamada como admin dela, mas
+  precisa trocar de token para operar nela.
+- **Usuário é global, vínculo é por fazenda.** Adicionar um membro com e-mail já
+  existente vincula a conta que existe, sem tocar em nome ou senha — o admin de
+  uma fazenda não manda na conta de alguém que também atende outra. E remover
+  membro apaga o vínculo, nunca o usuário: as pesagens que ele registrou
+  continuam apontando para ele.
+- **Admin não muda o próprio papel nem se remove**, senão a fazenda fica sem
+  ninguém capaz de gerir membros.
+- **Apagar lote não apaga animal** (FK `ON DELETE SET NULL`); apagar animal apaga
+  as pesagens dele em cascata. Para tirar do rebanho preservando o histórico,
+  use `PATCH /animais/{id}` com `status` = `vendido`/`morto`.
+- **`GET /animais/por-brinco/{brinco}`** é a rota que a tela de coleta vai usar
+  depois da leitura NFC (M6); ela só encontra animal **ativo**.
+- Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
+  e membros vêm como lista simples, por serem poucos.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -180,7 +209,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M0** — infraestrutura Docker Compose (postgres, redis, minio, traefik, backend, worker, frontend)
 - [x] **M1** — models SQLAlchemy + Alembic + seed de teste
 - [x] **M2** — login JWT, papel por fazenda, isolamento automático + suíte pytest
-- [ ] M3 — API de cadastro
+- [x] **M3** — CRUD de fazendas, membros, lotes e animais (49 testes)
 - [ ] M4 — API de pesagem
 - [ ] M5 — PWA do técnico
 - [ ] M6 — NFC
@@ -209,9 +238,9 @@ execução — nunca toca o banco de desenvolvimento. Postgres de verdade e não
 SQLite porque partes do schema são específicas do Postgres (índice parcial do
 brinco, ENUMs nativos).
 
-Usuários do seed (senha `engorda123` em todos): `tecnico@teste.com` (técnico nas
-duas fazendas), `joao@teste.com` (cliente da Boa Vista), `marina@teste.com`
-(cliente da Santa Clara). Duas fazendas de propósito: o isolamento multi-tenant
+Usuários do seed (senha `engorda123` em todos): `admin@teste.com` (admin nas duas
+fazendas), `tecnico@teste.com` (técnico nas duas), `joao@teste.com` (cliente da
+Boa Vista), `marina@teste.com` (cliente da Santa Clara). Duas fazendas de propósito: o isolamento multi-tenant
 do M2 só é testável se existir dado de outro tenant para vazar.
 
 O Traefik roteia **por hostname**, então a porta 8081 com o IP puro precisava de

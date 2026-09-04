@@ -11,10 +11,10 @@ from app.core.security import criar_token
 
 async def test_listagem_so_traz_animais_da_fazenda_do_token(client, dados, logar):
     headers_a = await logar(dados["cliente_a"])
-    brincos_a = {a["brinco"] for a in (await client.get("/animais", headers=headers_a)).json()}
+    brincos_a = {a["brinco"] for a in (await client.get("/animais", headers=headers_a)).json()["itens"]}
 
     headers_b = await logar(dados["cliente_b"])
-    brincos_b = {a["brinco"] for a in (await client.get("/animais", headers=headers_b)).json()}
+    brincos_b = {a["brinco"] for a in (await client.get("/animais", headers=headers_b)).json()["itens"]}
 
     assert brincos_a == {"1001"}
     assert brincos_b == {"2001"}
@@ -50,7 +50,7 @@ async def test_token_com_fazenda_de_outro_usuario_nao_vaza_dado(client, dados):
     # este é justamente o furo que a RLS do M10 fecha: hoje a barreira é só a
     # camada de aplicação, que confia no claim. Registrado como limitação.
     assert resposta.status_code == 200
-    assert {a["brinco"] for a in resposta.json()} == {"2001"}
+    assert {a["brinco"] for a in resposta.json()["itens"]} == {"2001"}
 
 
 async def test_trocar_fazenda_exige_vinculo(client, dados, logar):
@@ -67,14 +67,14 @@ async def test_tecnico_troca_de_fazenda_e_a_visao_acompanha(client, dados, logar
     """O técnico atende as duas fazendas — o dado que ele vê tem que seguir o
     token, não o usuário."""
     headers = await logar(dados["tecnico"], dados["fazenda_a"].id)
-    assert {a["brinco"] for a in (await client.get("/animais", headers=headers)).json()} == {"1001"}
+    assert {a["brinco"] for a in (await client.get("/animais", headers=headers)).json()["itens"]} == {"1001"}
 
     troca = await client.post(
         "/auth/trocar-fazenda", json={"fazenda_id": str(dados["fazenda_b"].id)}, headers=headers
     )
     assert troca.status_code == 200
     novos = {"Authorization": f"Bearer {troca.json()['access_token']}"}
-    assert {a["brinco"] for a in (await client.get("/animais", headers=novos)).json()} == {"2001"}
+    assert {a["brinco"] for a in (await client.get("/animais", headers=novos)).json()["itens"]} == {"2001"}
 
 
 async def test_refresh_para_de_funcionar_se_o_vinculo_for_revogado(client, dados, session):

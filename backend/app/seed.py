@@ -70,14 +70,18 @@ async def semear() -> None:
         await session.flush()
 
         senha = hash_senha(SENHA_PADRAO)
+        admin = Usuario(nome="Ana Admin", email="admin@teste.com", senha_hash=senha)
         tecnico = Usuario(nome="Carlos Técnico", email="tecnico@teste.com", senha_hash=senha)
         cliente_a = Usuario(nome="João Ribeiro", email="joao@teste.com", senha_hash=senha)
         cliente_b = Usuario(nome="Marina Alves", email="marina@teste.com", senha_hash=senha)
-        session.add_all([tecnico, cliente_a, cliente_b])
+        session.add_all([admin, tecnico, cliente_a, cliente_b])
         await session.flush()
 
         session.add_all(
             [
+                # Admin nas duas fazendas: é quem consegue mexer em /membros.
+                UsuarioFazenda(usuario_id=admin.id, fazenda_id=fazenda_a.id, papel=Papel.admin),
+                UsuarioFazenda(usuario_id=admin.id, fazenda_id=fazenda_b.id, papel=Papel.admin),
                 # O técnico atende as duas fazendas — caso que o M2 precisa tratar.
                 UsuarioFazenda(usuario_id=tecnico.id, fazenda_id=fazenda_a.id, papel=Papel.tecnico),
                 UsuarioFazenda(usuario_id=tecnico.id, fazenda_id=fazenda_b.id, papel=Papel.tecnico),
@@ -148,7 +152,7 @@ async def semear() -> None:
         await session.commit()
 
     print(
-        f"Seed pronto: 2 fazendas, 3 usuários, {total_animais} animais, "
+        f"Seed pronto: 2 fazendas, 4 usuários, {total_animais} animais, "
         f"{total_pesagens} pesagens. Senha de todos: {SENHA_PADRAO}"
     )
 

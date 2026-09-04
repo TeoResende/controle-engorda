@@ -98,8 +98,13 @@ async def dados(session):
     session.add_all([cliente_a, cliente_b, tecnico])
     await session.flush()
 
+    admin_a = Usuario(nome="Admin A", email=f"adm-{sufixo}@teste.com", senha_hash=senha)
+    session.add(admin_a)
+    await session.flush()
+
     session.add_all(
         [
+            UsuarioFazenda(usuario_id=admin_a.id, fazenda_id=fazenda_a.id, papel=Papel.admin),
             UsuarioFazenda(usuario_id=cliente_a.id, fazenda_id=fazenda_a.id, papel=Papel.cliente),
             UsuarioFazenda(usuario_id=cliente_b.id, fazenda_id=fazenda_b.id, papel=Papel.cliente),
             UsuarioFazenda(usuario_id=tecnico.id, fazenda_id=fazenda_a.id, papel=Papel.tecnico),
@@ -120,6 +125,7 @@ async def dados(session):
     return {
         "fazenda_a": fazenda_a,
         "fazenda_b": fazenda_b,
+        "admin_a": admin_a,
         "cliente_a": cliente_a,
         "cliente_b": cliente_b,
         "tecnico": tecnico,

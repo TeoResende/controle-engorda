@@ -124,3 +124,10 @@ def exigir_papel(*papeis: Papel):
 
 CtxDep = Annotated[Contexto, Depends(usuario_atual)]
 SessaoDep = Annotated[SessaoFazenda, Depends(sessao_fazenda)]
+
+
+# Perfis de acesso usados pelos routers de cadastro (M3):
+#   cliente → só leitura; técnico → leitura e escrita de campo; admin → tudo,
+#   incluindo gestão de membros e dados da fazenda.
+EscritaDep = Annotated[Contexto, Depends(exigir_papel(Papel.admin, Papel.tecnico))]
+AdminDep = Annotated[Contexto, Depends(exigir_papel(Papel.admin))]
