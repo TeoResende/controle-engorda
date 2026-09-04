@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.models.base import StatusAnimal, criado_em_col, uuid_pk
+from app.models.base import Desativavel, StatusAnimal, criado_em_col, desativado_em_col, uuid_pk
 
 if TYPE_CHECKING:
     from app.models.fazenda import Fazenda
@@ -17,18 +17,19 @@ if TYPE_CHECKING:
     from app.models.pesagem import Pesagem
 
 
-class Animal(Base):
+class Animal(Desativavel, Base):
     __tablename__ = "animais"
     __table_args__ = (
         # Um brinco físico só pode estar em um animal ATIVO por fazenda. O índice
         # é parcial de propósito: o brinco pode ser reaproveitado depois que o
-        # animal sai do rebanho (vendido/morto), sem apagar o histórico.
+        # animal sai do rebanho (vendido/morto) ou é desativado, sem apagar o
+        # histórico de nenhum dos dois.
         Index(
             "uq_animal_brinco_ativo",
             "fazenda_id",
             "brinco",
             unique=True,
-            postgresql_where=text("status = 'ativo'"),
+            postgresql_where=text("status = 'ativo' AND desativado_em IS NULL"),
         ),
         Index("ix_animais_fazenda_lote", "fazenda_id", "lote_id"),
     )
@@ -54,6 +55,7 @@ class Animal(Base):
     )
     observacoes: Mapped[str | None] = mapped_column(Text)
     criado_em: Mapped[datetime] = criado_em_col()
+    desativado_em: Mapped[datetime | None] = desativado_em_col()
 
     fazenda: Mapped["Fazenda"] = relationship(back_populates="animais")
     lote: Mapped["Lote | None"] = relationship(back_populates="animais")

@@ -6,9 +6,10 @@ fazendas.
 """
 
 import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -25,7 +26,16 @@ router = APIRouter(prefix="/membros", tags=["membros"])
 def _resposta(vinculo: UsuarioFazenda) -> MembroResponse:
     u = vinculo.usuario
     return MembroResponse(
-        id=u.id, nome=u.nome, email=u.email, papel=vinculo.papel, ativo=u.ativo, criado_em=u.criado_em
+        id=u.id,
+        nome=u.nome,
+        email=u.email,
+        papel=vinculo.papel,
+        # `ativo` aqui é do vínculo com ESTA fazenda: a pessoa pode seguir ativa
+        # no sistema e ter saído só desta fazenda.
+        ativo=vinculo.ativo and u.ativo,
+        admin_master=u.admin_master,
+        criado_em=u.criado_em,
+        desativado_em=vinculo.desativado_em,
     )
 
 
@@ -42,14 +52,18 @@ async def _vinculo(session: AsyncSession, fazenda_id, usuario_id) -> UsuarioFaze
 
 @router.get("", response_model=list[MembroResponse])
 async def listar(
-    ctx: AdminDep, session: Annotated[AsyncSession, Depends(get_session)]
+    ctx: AdminDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    incluir_inativos: Annotated[bool, Query(description="Traz também os removidos")] = False,
 ) -> list[MembroResponse]:
-    vinculos = await session.scalars(
+    stmt = (
         select(UsuarioFazenda)
         .options(joinedload(UsuarioFazenda.usuario))
         .where(UsuarioFazenda.fazenda_id == ctx.fazenda_id)
     )
-    return [_resposta(v) for v in vinculos]
+    if not incluir_inativos:
+        stmt = stmt.where(UsuarioFazenda.desativado_em.is_(None))
+    return [_resposta(v) for v in await session.scalars(stmt)]
 
 
 @router.post("", response_model=MembroResponse, status_code=status.HTTP_201_CREATED)
@@ -68,11 +82,19 @@ async def criar(
     else:
         # E-mail já existe: é a mesma pessoa atendendo outra fazenda. Vincula sem
         # tocar em nome nem senha — o admin desta fazenda não manda na conta dela.
-        if await _vinculo(session, ctx.fazenda_id, usuario.id) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Este usuário já é membro da fazenda",
-            )
+        existente = await _vinculo(session, ctx.fazenda_id, usuario.id)
+        if existente is not None:
+            if existente.ativo:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Este usuário já é membro da fazenda",
+                )
+            # Alguém que saiu e voltou reativa o vínculo antigo, mantendo o
+            # histórico de quando entrou pela primeira vez.
+            existente.desativado_em = None
+            existente.papel = dados.papel
+            await session.commit()
+            return _resposta(existente)
 
     vinculo = UsuarioFazenda(usuario_id=usuario.id, fazenda_id=ctx.fazenda_id, papel=dados.papel)
     session.add(vinculo)
@@ -101,17 +123,28 @@ async def atualizar_papel(
             detail="Um admin não pode mudar o próprio papel",
         )
 
+    if vinculo.usuario.admin_master and not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Só um admin master pode alterar outro admin master",
+        )
+
     vinculo.papel = dados.papel
     await session.commit()
     return _resposta(vinculo)
 
 
 @router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remover(
+async def desativar(
     usuario_id: uuid.UUID,
     ctx: AdminDep,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
+    """Tira o membro desta fazenda desativando o vínculo.
+
+    Nada é apagado: nem o vínculo (é o registro de que a pessoa trabalhou aqui),
+    nem o usuário — que pode atender outras fazendas e assinou pesagens.
+    """
     if usuario_id == ctx.usuario.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -122,7 +155,13 @@ async def remover(
     if vinculo is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro não encontrado")
 
-    # Apaga o vínculo, não o usuário: ele pode atender outras fazendas, e as
-    # pesagens que ele registrou continuam apontando para ele.
-    await session.delete(vinculo)
-    await session.commit()
+    if vinculo.usuario.admin_master:
+        # O admin master não se rebaixa nem é rebaixado por admin de fazenda.
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Um admin master não pode ser removido de uma fazenda",
+        )
+
+    if vinculo.desativado_em is None:
+        vinculo.desativado_em = datetime.now(timezone.utc)
+        await session.commit()

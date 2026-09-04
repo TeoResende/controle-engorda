@@ -57,6 +57,7 @@ async def listar(
     brinco: Annotated[str | None, Query(description="Busca parcial pelo brinco")] = None,
     lote_id: uuid.UUID | None = None,
     status_animal: StatusAnimal | None = None,
+    incluir_inativos: Annotated[bool, Query(description="Traz também os desativados")] = False,
     limite: Annotated[int, Query(ge=1, le=200)] = 50,
     deslocamento: Annotated[int, Query(ge=0)] = 0,
 ) -> Pagina[AnimalResponse]:
@@ -68,7 +69,7 @@ async def listar(
     if status_animal is not None:
         filtros.append(Animal.status == status_animal)
 
-    base = sessao.selecionar(Animal).where(*filtros)
+    base = sessao.selecionar(Animal, incluir_inativos=incluir_inativos).where(*filtros)
     total = await sessao.session.scalar(
         select(func.count()).select_from(base.subquery())
     )
@@ -180,9 +181,29 @@ async def atualizar(
 
 
 @router.delete("/{animal_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def remover(animal_id: uuid.UUID, sessao: SessaoDep, ctx: EscritaDep) -> None:
-    """Apagar animal apaga o histórico de peso dele junto (cascade). Para tirar
-    do rebanho sem perder o histórico, use PATCH com `status` = vendido/morto."""
+async def desativar(animal_id: uuid.UUID, sessao: SessaoDep, ctx: EscritaDep) -> None:
+    """Desativa o animal — as pesagens dele continuam no banco.
+
+    `status` (vendido/morto/transferido) diz por que o animal saiu do rebanho;
+    a desativação diz que o registro saiu de circulação. Os dois são
+    independentes, e nenhum dos dois apaga série de peso.
+    """
     animal = await _obter(sessao, animal_id)
-    await sessao.session.delete(animal)
-    await sessao.commit()
+    if animal.desativado_em is None:
+        animal.desativado_em = datetime.now(timezone.utc)
+        await sessao.commit()
+
+
+@router.post("/{animal_id}/reativar", response_model=AnimalResponse)
+async def reativar(animal_id: uuid.UUID, sessao: SessaoDep, ctx: EscritaDep) -> Animal:
+    """Reativar pode esbarrar em brinco já reaproveitado por outro animal — daí
+    o 409, que obriga a decidir qual dos dois fica com a tag."""
+    animal = await _obter(sessao, animal_id)
+    animal.desativado_em = None
+    try:
+        await sessao.commit()
+    except IntegrityError as exc:
+        await sessao.session.rollback()
+        raise BRINCO_DUPLICADO from exc
+    await sessao.session.refresh(animal)
+    return animal

@@ -14,7 +14,7 @@ from app.core.security import (
     decodificar_token,
     verificar_senha,
 )
-from app.models import Usuario, UsuarioFazenda
+from app.models import Fazenda, Papel, Usuario, UsuarioFazenda
 from app.schemas import (
     EuResponse,
     FazendaDoUsuario,
@@ -32,25 +32,90 @@ CREDENCIAL_INVALIDA = HTTPException(
 
 
 async def _vinculos(session: AsyncSession, usuario_id: uuid.UUID) -> list[UsuarioFazenda]:
+    """Vínculos ativos do usuário. Vínculo desativado não dá acesso a nada."""
     resultado = await session.scalars(
         select(UsuarioFazenda)
         .options(joinedload(UsuarioFazenda.fazenda))
-        .where(UsuarioFazenda.usuario_id == usuario_id)
+        .where(
+            UsuarioFazenda.usuario_id == usuario_id,
+            UsuarioFazenda.desativado_em.is_(None),
+            UsuarioFazenda.fazenda.has(Fazenda.desativado_em.is_(None)),
+        )
     )
     return list(resultado)
 
 
-def _par_de_tokens(usuario_id: uuid.UUID, vinculo: UsuarioFazenda) -> TokenResponse:
+async def _fazendas_do_master(session: AsyncSession) -> list[Fazenda]:
+    """O superusuário alcança qualquer fazenda ativa, com ou sem vínculo."""
+    resultado = await session.scalars(
+        select(Fazenda).where(Fazenda.desativado_em.is_(None)).order_by(Fazenda.nome)
+    )
+    return list(resultado)
+
+
+def _par_de_tokens(
+    usuario: Usuario, fazenda_id: uuid.UUID, papel: Papel
+) -> TokenResponse:
     dados = {
-        "usuario_id": str(usuario_id),
-        "fazenda_id": str(vinculo.fazenda_id),
-        "papel": vinculo.papel.value,
+        "usuario_id": str(usuario.id),
+        "fazenda_id": str(fazenda_id),
+        "papel": papel.value,
+        "master": usuario.admin_master,
     }
     return TokenResponse(
         access_token=criar_token(**dados, tipo="access"),
         refresh_token=criar_token(**dados, tipo="refresh"),
-        fazenda_id=vinculo.fazenda_id,
-        papel=vinculo.papel,
+        fazenda_id=fazenda_id,
+        papel=papel,
+        admin_master=usuario.admin_master,
+    )
+
+
+async def _escolher_fazenda(
+    session: AsyncSession, usuario: Usuario, fazenda_id: uuid.UUID | None
+) -> tuple[uuid.UUID, Papel]:
+    """Resolve em qual fazenda a sessão vai abrir, e com qual papel.
+
+    Superusuário entra em qualquer fazenda como admin; os demais só nas que
+    têm vínculo ativo. Com mais de uma opção e nenhuma escolhida, 409 com a
+    lista — o cliente é quem decide.
+    """
+    if usuario.admin_master:
+        opcoes = [(f.id, f.nome, Papel.admin) for f in await _fazendas_do_master(session)]
+    else:
+        opcoes = [(v.fazenda_id, v.fazenda.nome, v.papel) for v in await _vinculos(session, usuario.id)]
+
+    if not opcoes:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Nenhuma fazenda disponível para este usuário"
+                if not usuario.admin_master
+                else "Ainda não existe fazenda cadastrada"
+            ),
+        )
+
+    if fazenda_id is not None:
+        escolhida = next((o for o in opcoes if o[0] == fazenda_id), None)
+        if escolhida is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuário não tem acesso a esta fazenda",
+            )
+        return escolhida[0], escolhida[2]
+
+    if len(opcoes) == 1:
+        return opcoes[0][0], opcoes[0][2]
+
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "mensagem": "Informe fazenda_id: o usuário atende mais de uma fazenda",
+            "fazendas": [
+                {"fazenda_id": str(fid), "nome": nome, "papel": papel.value}
+                for fid, nome, papel in opcoes[:100]
+            ],
+        },
     )
 
 
@@ -60,42 +125,17 @@ async def login(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
     usuario = await session.scalar(
-        select(Usuario).where(Usuario.email == dados.email.lower(), Usuario.ativo.is_(True))
+        select(Usuario).where(
+            Usuario.email == dados.email.lower(), Usuario.desativado_em.is_(None)
+        )
     )
     # Verifica a senha mesmo com usuário inexistente seria o ideal contra
     # enumeração por tempo; aqui a mensagem já é a mesma nos dois casos.
     if usuario is None or not verificar_senha(dados.senha, usuario.senha_hash):
         raise CREDENCIAL_INVALIDA
 
-    vinculos = await _vinculos(session, usuario.id)
-    if not vinculos:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não está vinculado a nenhuma fazenda",
-        )
-
-    if dados.fazenda_id is not None:
-        escolhido = next((v for v in vinculos if v.fazenda_id == dados.fazenda_id), None)
-        if escolhido is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuário não tem acesso a esta fazenda",
-            )
-    elif len(vinculos) == 1:
-        escolhido = vinculos[0]
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "mensagem": "Informe fazenda_id: o usuário atende mais de uma fazenda",
-                "fazendas": [
-                    {"fazenda_id": str(v.fazenda_id), "nome": v.fazenda.nome, "papel": v.papel.value}
-                    for v in vinculos
-                ],
-            },
-        )
-
-    return _par_de_tokens(usuario.id, escolhido)
+    fazenda_id, papel = await _escolher_fazenda(session, usuario, dados.fazenda_id)
+    return _par_de_tokens(usuario, fazenda_id, papel)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -111,20 +151,22 @@ async def refresh(
     usuario_id = uuid.UUID(payload["sub"])
     fazenda_id = uuid.UUID(payload["fazenda_id"])
 
-    # O vínculo é relido do banco: acesso revogado depois que o refresh foi
-    # emitido tem que invalidar a renovação.
-    vinculo = await session.scalar(
-        select(UsuarioFazenda).where(
-            UsuarioFazenda.usuario_id == usuario_id,
-            UsuarioFazenda.fazenda_id == fazenda_id,
-        )
+    usuario = await session.scalar(
+        select(Usuario).where(Usuario.id == usuario_id, Usuario.desativado_em.is_(None))
     )
-    if vinculo is None:
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo")
+
+    # O acesso é relido do banco: vínculo desativado depois que o refresh foi
+    # emitido tem que invalidar a renovação.
+    try:
+        fazenda_id, papel = await _escolher_fazenda(session, usuario, fazenda_id)
+    except HTTPException as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Acesso à fazenda foi revogado"
-        )
+        ) from exc
 
-    return _par_de_tokens(usuario_id, vinculo)
+    return _par_de_tokens(usuario, fazenda_id, papel)
 
 
 @router.post("/trocar-fazenda", response_model=TokenResponse)
@@ -138,28 +180,26 @@ async def trocar_fazenda(
     Trocar de fazenda é trocar de token — o `fazenda_id` nunca vem do corpo da
     requisição em endpoints de dados.
     """
-    vinculo = await session.scalar(
-        select(UsuarioFazenda).where(
-            UsuarioFazenda.usuario_id == ctx.usuario.id,
-            UsuarioFazenda.fazenda_id == dados.fazenda_id,
-        )
-    )
-    if vinculo is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Usuário não tem acesso a esta fazenda"
-        )
-    return _par_de_tokens(ctx.usuario.id, vinculo)
+    fazenda_id, papel = await _escolher_fazenda(session, ctx.usuario, dados.fazenda_id)
+    return _par_de_tokens(ctx.usuario, fazenda_id, papel)
 
 
 @router.get("/eu", response_model=EuResponse)
 async def eu(ctx: CtxDep, session: Annotated[AsyncSession, Depends(get_session)]) -> EuResponse:
-    vinculos = await _vinculos(session, ctx.usuario.id)
+    if ctx.master:
+        fazendas = [
+            FazendaDoUsuario(fazenda_id=f.id, nome=f.nome, papel=Papel.admin)
+            for f in await _fazendas_do_master(session)
+        ]
+    else:
+        fazendas = [
+            FazendaDoUsuario(fazenda_id=v.fazenda_id, nome=v.fazenda.nome, papel=v.papel)
+            for v in await _vinculos(session, ctx.usuario.id)
+        ]
     return EuResponse(
         usuario=ctx.usuario,
         fazenda_id=ctx.fazenda_id,
         papel=ctx.papel,
-        fazendas=[
-            FazendaDoUsuario(fazenda_id=v.fazenda_id, nome=v.fazenda.nome, papel=v.papel)
-            for v in vinculos
-        ],
+        admin_master=ctx.master,
+        fazendas=fazendas,
     )

@@ -21,6 +21,7 @@ class LoteResponse(BaseModel):
     nome: str
     data_formacao: date | None
     criado_em: datetime
+    desativado_em: datetime | None
 
 
 class LoteComContagem(LoteResponse):

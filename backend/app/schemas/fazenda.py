@@ -25,3 +25,4 @@ class FazendaResponse(BaseModel):
     endereco: str | None
     plano: str
     criado_em: datetime
+    desativado_em: datetime | None

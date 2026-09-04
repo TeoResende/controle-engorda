@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.fazendas import router as fazendas_router
 from app.api.health import router as health_router
 from app.api.lotes import router as lotes_router
+from app.api.setup import router as setup_router
 from app.api.usuarios import router as membros_router
 
 app = FastAPI(
@@ -25,6 +26,7 @@ app.add_middleware(
 )
 
 app.include_router(health_router)
+app.include_router(setup_router)
 app.include_router(auth_router)
 app.include_router(fazendas_router)
 app.include_router(membros_router)

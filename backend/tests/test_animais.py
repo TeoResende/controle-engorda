@@ -137,11 +137,46 @@ async def test_listagem_pagina_e_filtra(client, dados, logar):
     assert all(a["brinco"].startswith("770") for a in filtrado["itens"])
 
 
-async def test_remover_animal(client, dados, logar):
+async def test_desativar_animal_nao_apaga_o_registro(client, dados, logar):
+    """Nada é apagado: some da listagem, mas continua acessível por id."""
     h = await logar(dados["tecnico"], dados["fazenda_a"].id)
     animal = (await client.post("/animais", json={"brinco": "9012"}, headers=h)).json()
+
     assert (await client.delete(f"/animais/{animal['id']}", headers=h)).status_code == 204
-    assert (await client.get(f"/animais/{animal['id']}", headers=h)).status_code == 404
+
+    lido = await client.get(f"/animais/{animal['id']}", headers=h)
+    assert lido.status_code == 200
+    assert lido.json()["desativado_em"] is not None
+
+    ativos = (await client.get("/animais?brinco=9012", headers=h)).json()
+    assert ativos["total"] == 0
+    com_inativos = (await client.get("/animais?brinco=9012&incluir_inativos=true", headers=h)).json()
+    assert com_inativos["total"] == 1
+
+
+async def test_reativar_animal(client, dados, logar):
+    h = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    animal = (await client.post("/animais", json={"brinco": "9013"}, headers=h)).json()
+    await client.delete(f"/animais/{animal['id']}", headers=h)
+
+    voltou = await client.post(f"/animais/{animal['id']}/reativar", headers=h)
+    assert voltou.status_code == 200
+    assert voltou.json()["desativado_em"] is None
+    assert (await client.get("/animais?brinco=9013", headers=h)).json()["total"] == 1
+
+
+async def test_brinco_de_animal_desativado_pode_ser_reaproveitado(client, dados, logar):
+    h = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    primeiro = (await client.post("/animais", json={"brinco": "9014"}, headers=h)).json()
+    await client.delete(f"/animais/{primeiro['id']}", headers=h)
+
+    segundo = await client.post("/animais", json={"brinco": "9014"}, headers=h)
+    assert segundo.status_code == 201
+
+    # ...e aí reativar o primeiro esbarra no brinco ocupado, em vez de criar
+    # dois animais ativos com a mesma tag.
+    conflito = await client.post(f"/animais/{primeiro['id']}/reativar", headers=h)
+    assert conflito.status_code == 409
 
 
 async def test_animal_de_outra_fazenda_nao_e_editavel(client, dados, logar):

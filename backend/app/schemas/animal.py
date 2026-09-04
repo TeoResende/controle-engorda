@@ -49,6 +49,7 @@ class AnimalResponse(BaseModel):
     status: StatusAnimal
     observacoes: str | None
     criado_em: datetime
+    desativado_em: datetime | None
 
 
 class BrincoHistoricoResponse(BaseModel):

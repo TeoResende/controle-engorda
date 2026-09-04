@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import Papel
 
@@ -29,6 +29,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     fazenda_id: uuid.UUID
     papel: Papel
+    admin_master: bool = False
 
 
 class RefreshRequest(BaseModel):
@@ -51,4 +52,17 @@ class EuResponse(BaseModel):
     usuario: UsuarioResponse
     fazenda_id: uuid.UUID
     papel: Papel
+    admin_master: bool = False
+    # Para o admin master, são todas as fazendas ativas do sistema.
     fazendas: list[FazendaDoUsuario]
+
+
+class SetupStatusResponse(BaseModel):
+    precisa_configuracao: bool
+
+
+class PrimeiroAcessoRequest(BaseModel):
+    nome: str = Field(min_length=2, max_length=160)
+    email: EmailStr
+    senha: str = Field(min_length=8, max_length=200)
+    nome_fazenda: str = Field(min_length=2, max_length=160)

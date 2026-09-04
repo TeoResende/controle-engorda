@@ -34,11 +34,23 @@ async def test_atualizar_e_remover_lote(client, dados, logar):
     assert editado.json()["data_formacao"] == "2026-01-15"
 
     assert (await client.delete(f"/lotes/{lote['id']}", headers=h)).status_code == 204
-    assert (await client.get(f"/lotes/{lote['id']}", headers=h)).status_code == 404
+    # Desativado, não apagado: sai da listagem mas segue legível por id.
+    lido = await client.get(f"/lotes/{lote['id']}", headers=h)
+    assert lido.status_code == 200
+    assert lido.json()["desativado_em"] is not None
+    assert lote["id"] not in {l["id"] for l in (await client.get("/lotes", headers=h)).json()}
+    assert lote["id"] in {
+        l["id"] for l in (await client.get("/lotes?incluir_inativos=true", headers=h)).json()
+    }
+
+    voltou = await client.post(f"/lotes/{lote['id']}/reativar", headers=h)
+    assert voltou.status_code == 200
+    assert lote["id"] in {l["id"] for l in (await client.get("/lotes", headers=h)).json()}
 
 
-async def test_apagar_lote_nao_apaga_os_animais(client, dados, logar):
-    """Regra do domínio: histórico de peso não some porque um lote foi desfeito."""
+async def test_desativar_lote_nao_mexe_nos_animais(client, dados, logar):
+    """Histórico não some porque um lote foi desfeito — e como o lote continua no
+    banco, o animal nem perde a referência de onde esteve."""
     h = await logar(dados["tecnico"], dados["fazenda_a"].id)
     lote = (await client.post("/lotes", json={"nome": "Será desfeito"}, headers=h)).json()
     animal = (
@@ -49,7 +61,7 @@ async def test_apagar_lote_nao_apaga_os_animais(client, dados, logar):
 
     sobrevivente = await client.get(f"/animais/{animal['id']}", headers=h)
     assert sobrevivente.status_code == 200
-    assert sobrevivente.json()["lote_id"] is None
+    assert sobrevivente.json()["lote_id"] == lote["id"]
 
 
 async def test_lotes_nao_atravessam_fazenda(client, dados, logar):

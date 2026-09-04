@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
-from app.models.base import StatusTranscricao
+from app.models.base import Desativavel, StatusTranscricao, desativado_em_col
 
 if TYPE_CHECKING:
     from app.models.animal import Animal
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from app.models.usuario import Usuario
 
 
-class Pesagem(Base):
+class Pesagem(Desativavel, Base):
     __tablename__ = "pesagens"
     __table_args__ = (
         # Consulta central do dashboard: série de peso de um animal no tempo.
@@ -57,6 +57,9 @@ class Pesagem(Base):
     sincronizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Pesagem errada é desativada, nunca apagada: a série de peso do animal é o
+    # produto do sistema e precisa ser auditável.
+    desativado_em: Mapped[datetime | None] = desativado_em_col()
 
     animal: Mapped["Animal"] = relationship(back_populates="pesagens")
     fazenda: Mapped["Fazenda"] = relationship()

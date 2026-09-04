@@ -78,7 +78,9 @@ async def test_tecnico_troca_de_fazenda_e_a_visao_acompanha(client, dados, logar
 
 
 async def test_refresh_para_de_funcionar_se_o_vinculo_for_revogado(client, dados, session):
-    from sqlalchemy import delete
+    from datetime import datetime, timezone
+
+    from sqlalchemy import update
 
     from app.models import UsuarioFazenda
 
@@ -87,8 +89,11 @@ async def test_refresh_para_de_funcionar_se_o_vinculo_for_revogado(client, dados
     )
     refresh = login.json()["refresh_token"]
 
+    # Vínculo é desativado, não apagado — e desativado já basta para barrar.
     await session.execute(
-        delete(UsuarioFazenda).where(UsuarioFazenda.usuario_id == dados["cliente_a"].id)
+        update(UsuarioFazenda)
+        .where(UsuarioFazenda.usuario_id == dados["cliente_a"].id)
+        .values(desativado_em=datetime.now(timezone.utc))
     )
     await session.commit()
 
@@ -108,7 +113,9 @@ async def test_usuario_desativado_perde_acesso(client, dados, logar, session):
     headers = await logar(dados["cliente_a"])
     assert (await client.get("/animais", headers=headers)).status_code == 200
 
-    dados["cliente_a"].ativo = False
+    from datetime import datetime, timezone
+
+    dados["cliente_a"].desativado_em = datetime.now(timezone.utc)
     session.add(dados["cliente_a"])
     await session.commit()
 

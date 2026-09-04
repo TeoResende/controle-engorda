@@ -37,6 +37,12 @@ class Contexto:
         self.fazenda_id = fazenda_id
         self.papel = papel
 
+    @property
+    def master(self) -> bool:
+        """Lido do banco, não do token: revogar o superusuário tem efeito
+        imediato, sem esperar o token de 12h expirar."""
+        return self.usuario.admin_master
+
 
 class SessaoFazenda:
     """Sessão do banco já amarrada a uma fazenda.
@@ -49,13 +55,29 @@ class SessaoFazenda:
         self.session = session
         self.fazenda_id = fazenda_id
 
-    def selecionar(self, model: type[T]) -> Select:
-        return select(model).where(model.fazenda_id == self.fazenda_id)
+    def selecionar(self, model: type[T], *, incluir_inativos: bool = False) -> Select:
+        """Filtra pela fazenda e, por padrão, esconde os registros desativados.
 
-    async def obter(self, model: type[T], id_: uuid.UUID) -> T | None:
+        Nada é apagado no sistema, então quase toda listagem quer só os ativos —
+        o padrão é esse, e ver o histórico é opt-in explícito.
+        """
+        stmt = select(model).where(model.fazenda_id == self.fazenda_id)
+        if not incluir_inativos and hasattr(model, "desativado_em"):
+            stmt = stmt.where(model.desativado_em.is_(None))
+        return stmt
+
+    async def obter(
+        self, model: type[T], id_: uuid.UUID, *, incluir_inativos: bool = True
+    ) -> T | None:
         """Busca por id dentro da fazenda. Id de outro tenant devolve None — que
-        vira 404, não 403: o cliente não fica sabendo que o registro existe."""
-        return await self.session.scalar(self.selecionar(model).where(model.id == id_))
+        vira 404, não 403: o cliente não fica sabendo que o registro existe.
+
+        Registro desativado ainda é encontrável por id de propósito: é o que
+        permite consultar histórico e reativar.
+        """
+        return await self.session.scalar(
+            self.selecionar(model, incluir_inativos=incluir_inativos).where(model.id == id_)
+        )
 
     def adicionar(self, obj: Any) -> Any:
         obj.fazenda_id = self.fazenda_id
@@ -93,7 +115,7 @@ async def usuario_atual(
         raise NAO_AUTENTICADO from exc
 
     usuario = await session.scalar(
-        select(Usuario).where(Usuario.id == usuario_id, Usuario.ativo.is_(True))
+        select(Usuario).where(Usuario.id == usuario_id, Usuario.desativado_em.is_(None))
     )
     if usuario is None:
         raise NAO_AUTENTICADO
@@ -112,6 +134,8 @@ def exigir_papel(*papeis: Papel):
     """Dependency de autorização por papel dentro da fazenda do token."""
 
     async def verificar(ctx: Annotated[Contexto, Depends(usuario_atual)]) -> Contexto:
+        if ctx.master:
+            return ctx
         if ctx.papel not in papeis:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

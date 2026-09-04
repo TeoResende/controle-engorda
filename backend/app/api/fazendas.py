@@ -1,5 +1,7 @@
-"""Dados da fazenda do token, e criação de novas fazendas."""
+"""Dados da fazenda do token, criação de fazendas e visão de admin master."""
 
+import uuid
+from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -43,6 +45,27 @@ async def atualizar_atual(
     return fazenda
 
 
+@router.get("", response_model=list[FazendaResponse])
+async def listar_todas(
+    ctx: CtxDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
+    incluir_inativas: bool = False,
+) -> list[Fazenda]:
+    """Todas as fazendas do sistema — só para o admin master.
+
+    Um usuário comum enxerga as fazendas dele em `GET /auth/eu`; esta rota é a
+    visão de dono do SaaS.
+    """
+    if not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Requer admin master"
+        )
+    stmt = select(Fazenda).order_by(Fazenda.nome)
+    if not incluir_inativas:
+        stmt = stmt.where(Fazenda.desativado_em.is_(None))
+    return list(await session.scalars(stmt))
+
+
 @router.post("", response_model=FazendaResponse, status_code=status.HTTP_201_CREATED)
 async def criar(
     dados: FazendaCriar,
@@ -61,6 +84,41 @@ async def criar(
     session.add(
         UsuarioFazenda(usuario_id=ctx.usuario.id, fazenda_id=fazenda.id, papel=Papel.admin)
     )
+    await session.commit()
+    await session.refresh(fazenda)
+    return fazenda
+
+
+@router.delete("/atual", status_code=status.HTTP_204_NO_CONTENT)
+async def desativar_atual(
+    ctx: CtxDep, session: Annotated[AsyncSession, Depends(get_session)]
+) -> None:
+    """Desativa a fazenda inteira. Só admin master: é uma decisão de dono do
+    SaaS, não do admin do tenant — e nada é apagado, os dados continuam lá."""
+    if not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Requer admin master"
+        )
+    fazenda = await _fazenda_do_token(session, ctx)
+    if fazenda.desativado_em is None:
+        fazenda.desativado_em = datetime.now(timezone.utc)
+        await session.commit()
+
+
+@router.post("/{fazenda_id}/reativar", response_model=FazendaResponse)
+async def reativar(
+    fazenda_id: uuid.UUID,
+    ctx: CtxDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> Fazenda:
+    if not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Requer admin master"
+        )
+    fazenda = await session.get(Fazenda, fazenda_id)
+    if fazenda is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fazenda não encontrada")
+    fazenda.desativado_em = None
     await session.commit()
     await session.refresh(fazenda)
     return fazenda

@@ -99,7 +99,10 @@ async def dados(session):
     await session.flush()
 
     admin_a = Usuario(nome="Admin A", email=f"adm-{sufixo}@teste.com", senha_hash=senha)
-    session.add(admin_a)
+    master = Usuario(
+        nome="Master", email=f"m-{sufixo}@teste.com", senha_hash=senha, admin_master=True
+    )
+    session.add_all([admin_a, master])
     await session.flush()
 
     session.add_all(
@@ -126,6 +129,7 @@ async def dados(session):
         "fazenda_a": fazenda_a,
         "fazenda_b": fazenda_b,
         "admin_a": admin_a,
+        "master": master,
         "cliente_a": cliente_a,
         "cliente_b": cliente_b,
         "tecnico": tecnico,

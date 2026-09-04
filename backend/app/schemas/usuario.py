@@ -27,4 +27,7 @@ class MembroResponse(BaseModel):
     email: EmailStr
     papel: Papel
     ativo: bool
+    admin_master: bool
     criado_em: datetime
+    # Data em que o vínculo com esta fazenda foi desativado.
+    desativado_em: datetime | None

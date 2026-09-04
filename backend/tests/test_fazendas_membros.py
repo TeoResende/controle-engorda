@@ -116,11 +116,42 @@ async def test_mudar_papel_e_remover_membro(client, dados, logar):
     assert virou.json()["papel"] == "tecnico"
 
     assert (await client.delete(f"/membros/{alvo}", headers=admin)).status_code == 204
-    # Sem vínculo, o login na fazenda deixa de funcionar.
+    # Vínculo desativado, não apagado: o login na fazenda deixa de funcionar...
     login = await client.post(
         "/auth/login", json={"email": dados["cliente_a"].email, "senha": dados["senha"]}
     )
     assert login.status_code == 403
+
+    # ...mas o registro de que a pessoa passou por aqui continua consultável.
+    ativos = {m["id"] for m in (await client.get("/membros", headers=admin)).json()}
+    assert alvo not in ativos
+    historico = (await client.get("/membros?incluir_inativos=true", headers=admin)).json()
+    saiu = next(m for m in historico if m["id"] == alvo)
+    assert saiu["desativado_em"] is not None
+
+
+async def test_readicionar_membro_reativa_o_vinculo(client, dados, logar):
+    admin = await logar(dados["admin_a"])
+    alvo = str(dados["cliente_a"].id)
+    await client.delete(f"/membros/{alvo}", headers=admin)
+
+    de_volta = await client.post(
+        "/membros",
+        json={
+            "nome": "Cliente A",
+            "email": dados["cliente_a"].email,
+            "senha": "irrelevante-aqui-1",
+            "papel": "tecnico",
+        },
+        headers=admin,
+    )
+    assert de_volta.status_code == 201
+    assert de_volta.json()["papel"] == "tecnico"
+
+    login = await client.post(
+        "/auth/login", json={"email": dados["cliente_a"].email, "senha": dados["senha"]}
+    )
+    assert login.status_code == 200
 
 
 async def test_admin_nao_se_rebaixa_nem_se_remove(client, dados, logar):

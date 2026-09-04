@@ -55,15 +55,18 @@ engorda_leite/
 ## 3. Modelo de dados
 
 ```sql
-fazendas(id, nome, proprietario, endereco, plano, criado_em)
-usuarios(id, nome, email, senha_hash, criado_em)
-usuario_fazenda(usuario_id, fazenda_id, papel[tecnico|cliente|admin])
+-- Todas as tabelas abaixo têm `desativado_em` (NULL = ativo): nada é apagado.
+fazendas(id, nome, proprietario, endereco, plano, criado_em, desativado_em)
+usuarios(id, nome, email, senha_hash, admin_master, criado_em, desativado_em)
+  -- admin_master: superusuário, opera qualquer fazenda sem vínculo
+usuario_fazenda(usuario_id, fazenda_id, papel[tecnico|cliente|admin], desativado_em)
   -- um usuário pode ter papéis diferentes em fazendas diferentes
 lotes(id, fazenda_id, nome, data_formacao, criado_em)
 animais(id, fazenda_id, brinco, nome, raca, porte, brinco_mae,
         data_nascimento, peso_nascimento, lote_id, status,
         observacoes, criado_em)
-  -- índice único parcial em (fazenda_id, brinco) para animais com status='ativo'
+  -- índice único parcial em (fazenda_id, brinco)
+  -- WHERE status='ativo' AND desativado_em IS NULL
 animal_brinco_historico(id, animal_id, brinco, vinculado_em, desvinculado_em)
   -- histórico de troca de brinco, sem perder o rastro do animal
 pesagens(id [uuid gerado no celular], fazenda_id, animal_id, data,
@@ -171,32 +174,75 @@ Traefik + Let's Encrypt, deploy em produção.
 Postgres Row-Level Security, backup agendado (`pg_dump`).
 *Teste:* tentativa de acesso cross-tenant é bloqueada mesmo simulando uma falha na camada de aplicação.
 
-## 8.1. Regras de acesso por papel (M3)
+## 8.1. Acesso, papéis e ciclo de vida dos registros (M3)
 
-| | cliente | técnico | admin |
-|---|---|---|---|
-| Ler animais, lotes, fazenda | sim | sim | sim |
-| Criar/editar animais e lotes | não | sim | sim |
-| Editar dados da fazenda | não | não | sim |
-| Gerir membros | não | não | sim |
+| | cliente | técnico | admin | admin master |
+|---|---|---|---|---|
+| Ler animais, lotes, fazenda | sim | sim | sim | sim |
+| Criar/editar animais e lotes | não | sim | sim | sim |
+| Editar dados da fazenda | não | não | sim | sim |
+| Gerir membros | não | não | sim | sim |
+| Ver/operar **todas** as fazendas | não | não | não | sim |
+| Desativar/reativar fazenda | não | não | não | sim |
 
-Decisões que valem para os próximos marcos:
+### Admin master (superusuário)
 
-- **Não existe superusuário global.** O acesso é o vínculo `usuario_fazenda`.
-  Quem cria uma fazenda (`POST /fazendas`) sai da chamada como admin dela, mas
-  precisa trocar de token para operar nela.
-- **Usuário é global, vínculo é por fazenda.** Adicionar um membro com e-mail já
-  existente vincula a conta que existe, sem tocar em nome ou senha — o admin de
-  uma fazenda não manda na conta de alguém que também atende outra. E remover
-  membro apaga o vínculo, nunca o usuário: as pesagens que ele registrou
-  continuam apontando para ele.
+`usuarios.admin_master` — enxerga e opera **qualquer** fazenda ativa, sem
+precisar de vínculo, sempre com papel efetivo `admin`. É o dono do SaaS.
+
+- A flag é lida **do banco** a cada requisição, não do claim do token: revogar
+  um superusuário tem efeito imediato, sem esperar o token de 12h expirar.
+- **Admin master não se rebaixa nem é rebaixado**: admin de fazenda recebe 403 ao
+  tentar mudar o papel dele ou removê-lo da fazenda.
+- No login sem `fazenda_id`, ele recebe 409 com **todas** as fazendas ativas do
+  sistema (a lista é limitada a 100 no retorno).
+- `GET /fazendas` (todas do sistema) é exclusivo dele. Usuário comum vê as
+  fazendas dele em `GET /auth/eu`.
+
+### Primeiro acesso
+
+Sistema sem nenhum usuário não consegue autenticar ninguém — e portanto não teria
+como criar o primeiro administrador. O router `/setup` resolve isso e se fecha
+sozinho:
+
+- `GET /setup/status` → `{"precisa_configuracao": bool}`. Rota **pública**; o
+  frontend consulta antes da tela de login e manda o visitante para
+  `/primeiro-acesso` se o sistema estiver vazio.
+- `POST /setup/primeiro-acesso` cria o primeiro **admin master** e a primeira
+  fazenda no mesmo passo (sem fazenda ele não conseguiria logar), e já devolve a
+  sessão pronta. A partir do primeiro usuário existente, responde 409 para
+  sempre.
+
+### Nada é apagado — tudo é desativação
+
+Todo registro relevante tem `desativado_em` (`NULL` = ativo): `fazendas`,
+`usuarios`, `usuario_fazenda`, `lotes`, `animais` e `pesagens`. `DELETE` nos
+endpoints **desativa**; existe `POST .../reativar` para desfazer.
+
+- Listagens escondem inativos por padrão; `?incluir_inativos=true` mostra o
+  histórico. Busca **por id** encontra desativado de propósito — é o que permite
+  consultar histórico e reativar.
+- `SessaoFazenda.selecionar()` já aplica esse filtro, então esquecê-lo não é
+  possível por descuido — mesma lógica do isolamento por fazenda.
+- Em `animais`, `status` (vendido/morto/transferido) e `desativado_em` são
+  **ortogonais**: `status` diz por que o animal saiu do rebanho, a desativação diz
+  que o registro saiu de circulação. O índice parcial do brinco considera os
+  dois (`status = 'ativo' AND desativado_em IS NULL`), então brinco de animal
+  desativado pode ser reaproveitado — e reativar esse animal devolve 409 se a tag
+  já foi para outro.
+- Desativar membro **não** apaga o vínculo: some da lista, bloqueia o login
+  naquela fazenda, e o registro de que a pessoa trabalhou ali continua
+  consultável. Readicionar o mesmo e-mail **reativa** o vínculo antigo.
+
+### Outras decisões que valem para os próximos marcos
+
+- **Usuário é global, vínculo é por fazenda.** Adicionar membro com e-mail já
+  existente vincula a conta existente, sem tocar em nome ou senha — o admin de
+  uma fazenda não manda na conta de quem também atende outra.
 - **Admin não muda o próprio papel nem se remove**, senão a fazenda fica sem
   ninguém capaz de gerir membros.
-- **Apagar lote não apaga animal** (FK `ON DELETE SET NULL`); apagar animal apaga
-  as pesagens dele em cascata. Para tirar do rebanho preservando o histórico,
-  use `PATCH /animais/{id}` com `status` = `vendido`/`morto`.
 - **`GET /animais/por-brinco/{brinco}`** é a rota que a tela de coleta vai usar
-  depois da leitura NFC (M6); ela só encontra animal **ativo**.
+  depois da leitura NFC (M6); ela só encontra animal ativo e não desativado.
 - Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
   e membros vêm como lista simples, por serem poucos.
 
@@ -209,7 +255,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M0** — infraestrutura Docker Compose (postgres, redis, minio, traefik, backend, worker, frontend)
 - [x] **M1** — models SQLAlchemy + Alembic + seed de teste
 - [x] **M2** — login JWT, papel por fazenda, isolamento automático + suíte pytest
-- [x] **M3** — CRUD de fazendas, membros, lotes e animais (49 testes)
+- [x] **M3** — CRUD de fazendas, membros, lotes e animais; admin master, primeiro acesso e soft delete (67 testes)
 - [ ] M4 — API de pesagem
 - [ ] M5 — PWA do técnico
 - [ ] M6 — NFC
@@ -238,9 +284,10 @@ execução — nunca toca o banco de desenvolvimento. Postgres de verdade e não
 SQLite porque partes do schema são específicas do Postgres (índice parcial do
 brinco, ENUMs nativos).
 
-Usuários do seed (senha `engorda123` em todos): `admin@teste.com` (admin nas duas
-fazendas), `tecnico@teste.com` (técnico nas duas), `joao@teste.com` (cliente da
-Boa Vista), `marina@teste.com` (cliente da Santa Clara). Duas fazendas de propósito: o isolamento multi-tenant
+Usuários do seed (senha `engorda123` em todos): `master@teste.com` (admin master,
+sem vínculo — alcança tudo), `admin@teste.com` (admin nas duas fazendas),
+`tecnico@teste.com` (técnico nas duas), `joao@teste.com` (cliente da Boa Vista),
+`marina@teste.com` (cliente da Santa Clara). Duas fazendas de propósito: o isolamento multi-tenant
 do M2 só é testável se existir dado de outro tenant para vazar.
 
 O Traefik roteia **por hostname**, então a porta 8081 com o IP puro precisava de
@@ -270,4 +317,9 @@ Em produção, `docker compose -f docker-compose.yml -f docker-compose.prod.yml 
 3. **Backend e worker rodam com o UID/GID do host** (`UID_HOST`/`GID_HOST` no `.env`). Sem isso, todo arquivo gerado dentro do container no bind mount — migration do Alembic, por exemplo — nasce como root e não é editável no host.
 4. **`bcrypt` direto, sem `passlib`.** A passlib 1.7.4 está sem manutenção e quebra com bcrypt >= 4.1 (`password cannot be longer than 72 bytes`). Senhas passam por SHA-256 + base64 antes do bcrypt, o que remove o limite de 72 bytes — a mesma transformação é aplicada no hash e na verificação (`app/core/security.py`).
 5. **Downgrade de migration precisa derrubar os tipos ENUM na mão.** O autogenerate do Alembic cria os tipos junto com as tabelas mas não os remove; sem o `DROP TYPE` explícito, `downgrade` seguido de `upgrade` falha com "type already exists". Ver o fim do `downgrade()` na migration inicial e repetir o padrão em migrations futuras que criem ENUMs.
-6. Antes do M9, trocar `SECRET_KEY`, `POSTGRES_PASSWORD` e `MINIO_ROOT_PASSWORD` do `.env` e substituir `SEU-DOMINIO.com` em `traefik/dinamico-prod/rotas.yml`.
+6. **Migration que muda índice parcial precisa ser escrita à mão.** O
+   autogenerate do Alembic não compara a cláusula `WHERE` de um índice parcial —
+   a mudança passa despercebida. Ver `682ebecaeba1`, que dropa e recria o
+   `uq_animal_brinco_ativo`. O mesmo vale para coluna `NOT NULL` nova em tabela
+   com dados: precisa de `server_default` no `add_column`, removido logo depois.
+7. Antes do M9, trocar `SECRET_KEY`, `POSTGRES_PASSWORD` e `MINIO_ROOT_PASSWORD` do `.env` e substituir `SEU-DOMINIO.com` em `traefik/dinamico-prod/rotas.yml`.

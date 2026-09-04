@@ -22,6 +22,26 @@ def criado_em_col() -> Mapped[datetime]:
     return mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
+def desativado_em_col() -> Mapped["datetime | None"]:
+    """Marca de desativação (soft delete).
+
+    Nada é apagado neste sistema: histórico de peso, autoria de pesagem e rastro
+    de brinco precisam sobreviver à saída de um animal, de um lote ou de um
+    funcionário. `desativado_em is None` significa ativo.
+    """
+    return mapped_column(DateTime(timezone=True), default=None, index=True)
+
+
+class Desativavel:
+    """Mixin de leitura para quem tem `desativado_em`."""
+
+    desativado_em: Mapped[datetime | None]
+
+    @property
+    def ativo(self) -> bool:
+        return self.desativado_em is None
+
+
 class Papel(str, enum.Enum):
     tecnico = "tecnico"
     cliente = "cliente"
@@ -29,6 +49,12 @@ class Papel(str, enum.Enum):
 
 
 class StatusAnimal(str, enum.Enum):
+    """Situação do animal no rebanho.
+
+    É ortogonal à desativação: `status` diz por que o animal saiu do rebanho,
+    `desativado_em` diz que o registro foi retirado de circulação no sistema.
+    """
+
     ativo = "ativo"
     vendido = "vendido"
     morto = "morto"

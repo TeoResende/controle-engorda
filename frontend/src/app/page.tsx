@@ -1,6 +1,39 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { api } from "@/lib/api";
+
+type SetupStatus = { precisa_configuracao: boolean };
 
 export default function Home() {
+  const router = useRouter();
+  const [verificando, setVerificando] = useState(true);
+
+  // Instalação nova não tem usuário nenhum — e sem usuário não há como logar.
+  // Nesse caso o visitante vai direto para a criação do primeiro admin.
+  useEffect(() => {
+    api<SetupStatus>("/setup/status")
+      .then(({ precisa_configuracao }) => {
+        if (precisa_configuracao) {
+          router.replace("/primeiro-acesso");
+        } else {
+          setVerificando(false);
+        }
+      })
+      .catch(() => setVerificando(false)); // API fora do ar: segue para as telas
+  }, [router]);
+
+  if (verificando) {
+    return (
+      <main className="flex min-h-screen items-center justify-center p-6">
+        <p className="text-sm text-verde/60">Carregando…</p>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-6">
       <div>

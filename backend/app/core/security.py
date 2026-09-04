@@ -53,6 +53,7 @@ def criar_token(
     usuario_id: str,
     fazenda_id: str,
     papel: str,
+    master: bool = False,
     tipo: TipoToken = "access",
 ) -> str:
     agora = datetime.now(timezone.utc)
@@ -67,6 +68,10 @@ def criar_token(
         # escolher o tenant que quer ler — ver app/core/deps.py.
         "fazenda_id": fazenda_id,
         "papel": papel,
+        # Superusuário: o claim evita reler a flag do banco a cada requisição,
+        # mas quem manda de verdade é o `usuarios.admin_master` — a dependency
+        # relê o usuário e usa o valor do banco.
+        "master": master,
         "tipo": tipo,
         "iat": agora,
         "exp": expira,
