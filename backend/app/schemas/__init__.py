@@ -18,6 +18,13 @@ from app.schemas.auth import (
 from app.schemas.comum import Pagina
 from app.schemas.fazenda import FazendaAtualizar, FazendaCriar, FazendaResponse
 from app.schemas.lote import LoteAtualizar, LoteComContagem, LoteCriar, LoteResponse
+from app.schemas.pesagem import (
+    PesagemAtualizar,
+    PesagemCriar,
+    PesagemResponse,
+    RespostaLote,
+    ResultadoEnvio,
+)
 from app.schemas.usuario import MembroAtualizar, MembroCriar, MembroResponse
 
 __all__ = [
@@ -39,6 +46,11 @@ __all__ = [
     "MembroCriar",
     "MembroResponse",
     "Pagina",
+    "PesagemAtualizar",
+    "PesagemCriar",
+    "PesagemResponse",
+    "RespostaLote",
+    "ResultadoEnvio",
     "PrimeiroAcessoRequest",
     "SetupStatusResponse",
     "RefreshRequest",

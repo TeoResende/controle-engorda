@@ -246,6 +246,38 @@ endpoints **desativa**; existe `POST .../reativar` para desfazer.
 - Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
   e membros vêm como lista simples, por serem poucos.
 
+## 8.2. Pesagem e idempotência (M4)
+
+`POST /pesagens` recebe o **UUID gerado no celular**. É esse id que torna o envio
+idempotente — e a idempotência não é um detalhe de implementação, é o que permite
+a fila offline reenviar sem medo.
+
+- **201 se criou agora, 200 se o id já existia.** O app usa o código para saber
+  se aquilo era novidade, mas trata os dois como sucesso e apaga a cópia local.
+- **Reenvio com conteúdo diferente não sobrescreve**: vale o que chegou primeiro.
+  Sobrescrever em silêncio esconderia um bug do cliente. Corrigir peso é
+  `PATCH /pesagens/{id}` — não mandar um id novo, que viraria um segundo ponto na
+  série de peso do animal.
+- **A checagem prévia não basta**: entre o SELECT e o INSERT cabe outro INSERT. A
+  barreira real é a PK; quem perde a corrida lê o registro do vencedor em vez de
+  estourar 500 (coberto por teste).
+- **`POST /pesagens/lote`** descarrega a fila inteira (máx. 500). É processado
+  item a item de propósito: uma pesagem inválida no meio não pode travar a
+  sincronização do dia. A resposta traz `{criadas, duplicadas, erros}` e o
+  resultado de cada item, com o motivo do erro em texto para o app mostrar ao
+  técnico.
+- **O animal pode vir por `animal_id` ou por `brinco`** — o aparelho pode ter lido
+  a tag de um animal cujo UUID ele ainda não sincronizou. `animal_id` tem
+  prioridade.
+- **A autoria vem do token**, nunca do corpo: o aparelho não escolhe em nome de
+  quem a pesagem é assinada.
+- **`coletado_em` (relógio do aparelho) e `sincronizado_em` (relógio do servidor)**
+  são separados; a diferença é quanto tempo o celular ficou sem sinal. Data de
+  coleta no futuro é recusada com 1 dia de folga para fuso horário — só pode ser
+  relógio errado.
+- Pesagem errada é **desativada**, não apagada: sai da série mas continua
+  auditável.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -256,7 +288,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M1** — models SQLAlchemy + Alembic + seed de teste
 - [x] **M2** — login JWT, papel por fazenda, isolamento automático + suíte pytest
 - [x] **M3** — CRUD de fazendas, membros, lotes e animais; admin master, primeiro acesso e soft delete (67 testes)
-- [ ] M4 — API de pesagem
+- [x] **M4** — pesagem com idempotência pelo UUID do cliente (88 testes)
 - [ ] M5 — PWA do técnico
 - [ ] M6 — NFC
 - [ ] M7 — áudio + transcrição
