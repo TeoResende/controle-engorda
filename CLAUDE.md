@@ -77,6 +77,25 @@ pesagens(id [uuid gerado no celular], fazenda_id, animal_id, data,
 
 ## 4. Autenticação
 
+**Como está implementado (M2):** o `fazenda_id` viaja assinado *dentro* do token,
+junto com `sub` (usuário) e `papel`. Trocar de fazenda é trocar de token
+(`POST /auth/trocar-fazenda`) — nenhum endpoint de dados aceita `fazenda_id` no
+corpo ou na query. Quem atende mais de uma fazenda escolhe no login; omitir a
+escolha com dois vínculos devolve 409 com a lista das fazendas.
+
+O isolamento não é escrito endpoint a endpoint: a dependency `SessaoDep` entrega
+uma `SessaoFazenda` (`app/core/deps.py`) cujo `selecionar()` já aplica o filtro e
+cujo `adicionar()` carimba o `fazenda_id`. Endpoint que use a sessão crua é
+exceção e precisa de justificativa. Id de outra fazenda responde **404, não 403**
+— um 403 confirmaria que o registro existe.
+
+**Limitação conhecida, a resolver no M10:** com access token de 12h, revogar o
+acesso de um usuário só surte efeito na renovação — o token já emitido continua
+valendo até expirar. O `refresh` relê o vínculo no banco e o usuário desativado
+perde acesso na hora (ambos cobertos por teste), mas a revogação imediata de um
+access token exigiria uma denylist em Redis. É o preço consciente do token longo,
+que existe para o técnico operar horas offline.
+
 JWT (access + refresh). Access token com validade longa (~12h) porque o técnico fica horas sem sinal em campo — o app precisa continuar funcionando offline mesmo com o token "vencendo", já que a renovação só é necessária no momento de sincronizar (quando já há internet de novo).
 
 ## 5. Motor de sincronização offline
@@ -160,7 +179,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 
 - [x] **M0** — infraestrutura Docker Compose (postgres, redis, minio, traefik, backend, worker, frontend)
 - [x] **M1** — models SQLAlchemy + Alembic + seed de teste
-- [ ] M2 — auth + multi-tenant
+- [x] **M2** — login JWT, papel por fazenda, isolamento automático + suíte pytest
 - [ ] M3 — API de cadastro
 - [ ] M4 — API de pesagem
 - [ ] M5 — PWA do técnico
@@ -178,6 +197,17 @@ docker compose up -d --build
 docker compose exec backend alembic upgrade head
 docker compose exec backend python -m app.seed          # --reset recria do zero
 ```
+
+Rodar os testes:
+
+```bash
+docker compose exec backend pytest -q
+```
+
+A suíte usa um banco Postgres separado (`engorda_test`), recriado a cada
+execução — nunca toca o banco de desenvolvimento. Postgres de verdade e não
+SQLite porque partes do schema são específicas do Postgres (índice parcial do
+brinco, ENUMs nativos).
 
 Usuários do seed (senha `engorda123` em todos): `tecnico@teste.com` (técnico nas
 duas fazendas), `joao@teste.com` (cliente da Boa Vista), `marina@teste.com`

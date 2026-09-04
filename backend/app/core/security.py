@@ -24,3 +24,64 @@ def hash_senha(senha: str) -> str:
 
 def verificar_senha(senha: str, senha_hash: str) -> bool:
     return bcrypt.checkpw(_preparar(senha), senha_hash.encode("utf-8"))
+
+
+# --- JWT -------------------------------------------------------------------
+#
+# O access token tem validade longa (~12h) de propósito: o técnico passa o dia
+# em campo sem sinal e o app precisa continuar operando offline. A renovação só
+# faz falta na hora de sincronizar — quando já existe internet de novo.
+
+from datetime import datetime, timedelta, timezone
+from typing import Any, Literal
+
+import jwt
+
+from app.core.config import settings
+
+ALGORITMO = "HS256"
+
+TipoToken = Literal["access", "refresh"]
+
+
+class TokenInvalido(Exception):
+    """Token ausente, expirado, adulterado ou do tipo errado."""
+
+
+def criar_token(
+    *,
+    usuario_id: str,
+    fazenda_id: str,
+    papel: str,
+    tipo: TipoToken = "access",
+) -> str:
+    agora = datetime.now(timezone.utc)
+    if tipo == "access":
+        expira = agora + timedelta(minutes=settings.access_token_expire_minutes)
+    else:
+        expira = agora + timedelta(days=settings.refresh_token_expire_days)
+
+    payload: dict[str, Any] = {
+        "sub": usuario_id,
+        # fazenda_id viaja DENTRO do token, assinado. É o que impede o cliente de
+        # escolher o tenant que quer ler — ver app/core/deps.py.
+        "fazenda_id": fazenda_id,
+        "papel": papel,
+        "tipo": tipo,
+        "iat": agora,
+        "exp": expira,
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITMO)
+
+
+def decodificar_token(token: str, *, tipo_esperado: TipoToken = "access") -> dict[str, Any]:
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[ALGORITMO])
+    except jwt.ExpiredSignatureError as exc:
+        raise TokenInvalido("token expirado") from exc
+    except jwt.PyJWTError as exc:
+        raise TokenInvalido("token inválido") from exc
+
+    if payload.get("tipo") != tipo_esperado:
+        raise TokenInvalido(f"esperado token do tipo '{tipo_esperado}'")
+    return payload
