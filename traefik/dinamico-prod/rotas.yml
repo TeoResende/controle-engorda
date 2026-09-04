@@ -1,0 +1,36 @@
+# Rotas de produção (M9) — HTTPS via Let's Encrypt.
+# Substitua SEU-DOMINIO.com pelo domínio real antes do deploy.
+http:
+  routers:
+    backend:
+      rule: "Host(`api.SEU-DOMINIO.com`)"
+      entryPoints: [websecure]
+      tls:
+        certResolver: le
+      service: backend
+    frontend:
+      rule: "Host(`app.SEU-DOMINIO.com`)"
+      entryPoints: [websecure]
+      tls:
+        certResolver: le
+      service: frontend
+    minio:
+      rule: "Host(`minio.SEU-DOMINIO.com`)"
+      entryPoints: [websecure]
+      tls:
+        certResolver: le
+      service: minio
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:3000"
+    minio:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9001"

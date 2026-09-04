@@ -1,0 +1,46 @@
+# Rotas de desenvolvimento (sem TLS).
+#
+# Usamos o file provider em vez do provider Docker: o cliente Docker embutido no
+# Traefik negocia a API 1.24, que o daemon 29.x recusa (mínimo 1.40). Com rotas
+# em arquivo o roteamento não depende da versão da API do Docker.
+#
+# Três formas de chegar em cada serviço:
+#   - *.localhost              → só da própria máquina que roda o Docker
+#   - *.<IP>.nip.io            → de qualquer aparelho da rede local (nip.io
+#                                resolve o IP embutido no nome, sem editar hosts)
+#   - IP puro, sem subdomínio  → cai no frontend (router "padrao", prioridade 1)
+http:
+  routers:
+    backend:
+      rule: "Host(`api.localhost`) || Host(`api.192.168.0.130.nip.io`)"
+      entryPoints: [web]
+      service: backend
+    frontend:
+      rule: "Host(`app.localhost`) || Host(`app.192.168.0.130.nip.io`)"
+      entryPoints: [web]
+      service: frontend
+    minio:
+      rule: "Host(`minio.localhost`) || Host(`minio.192.168.0.130.nip.io`)"
+      entryPoints: [web]
+      service: minio
+
+    # Qualquer host não reconhecido (ex.: http://192.168.0.130:8081) abre o app.
+    padrao:
+      rule: "PathPrefix(`/`)"
+      priority: 1
+      entryPoints: [web]
+      service: frontend
+
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://backend:8000"
+    frontend:
+      loadBalancer:
+        servers:
+          - url: "http://frontend:3000"
+    minio:
+      loadBalancer:
+        servers:
+          - url: "http://minio:9001"
