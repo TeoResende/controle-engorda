@@ -9,8 +9,34 @@
 #   - *.<IP>.nip.io            → de qualquer aparelho da rede local (nip.io
 #                                resolve o IP embutido no nome, sem editar hosts)
 #   - IP puro, sem subdomínio  → cai no frontend (router "padrao", prioridade 1)
+#
+# Cada rota existe em http (:8081) e https (:8443). O HTTPS não é conforto: sem
+# contexto seguro o celular não registra Service Worker nem enxerga a API de NFC.
 http:
+  middlewares:
+    tira-api:
+      stripPrefix:
+        prefixes: ["/api"]
+
   routers:
+    # A API também responde em /api no MESMO domínio do app. Isso existe para o
+    # PWA: servido em https, ele não pode chamar uma API em http (conteúdo
+    # misto), e usar outro host obrigaria a aceitar o certificado duas vezes e
+    # traria CORS junto. Mesma origem resolve os três de uma vez.
+    api_no_app:
+      rule: "(Host(`app.localhost`) || Host(`app.192.168.0.130.nip.io`)) && PathPrefix(`/api`)"
+      priority: 100
+      entryPoints: [web]
+      middlewares: [tira-api]
+      service: backend
+    api_no_app_tls:
+      rule: "(Host(`app.localhost`) || Host(`app.192.168.0.130.nip.io`)) && PathPrefix(`/api`)"
+      priority: 100
+      entryPoints: [websecure]
+      tls: {}
+      middlewares: [tira-api]
+      service: backend
+
     backend:
       rule: "Host(`api.localhost`) || Host(`api.192.168.0.130.nip.io`)"
       entryPoints: [web]
@@ -29,6 +55,28 @@ http:
       rule: "PathPrefix(`/`)"
       priority: 1
       entryPoints: [web]
+      service: frontend
+
+    backend_tls:
+      rule: "Host(`api.localhost`) || Host(`api.192.168.0.130.nip.io`)"
+      entryPoints: [websecure]
+      tls: {}
+      service: backend
+    frontend_tls:
+      rule: "Host(`app.localhost`) || Host(`app.192.168.0.130.nip.io`)"
+      entryPoints: [websecure]
+      tls: {}
+      service: frontend
+    minio_tls:
+      rule: "Host(`minio.localhost`) || Host(`minio.192.168.0.130.nip.io`)"
+      entryPoints: [websecure]
+      tls: {}
+      service: minio
+    padrao_tls:
+      rule: "PathPrefix(`/`)"
+      priority: 1
+      entryPoints: [websecure]
+      tls: {}
       service: frontend
 
   services:

@@ -1,0 +1,11 @@
+# Frontend em modo produção, mantendo o resto do ambiente de desenvolvimento.
+#
+# O teste offline do M5 só é fiel assim: em `next dev` os chunks são gerados sob
+# demanda e o HMR abre um websocket que falha sem rede, então "abrir em modo
+# avião" não prova nada. Com o build de produção, o app shell é estável e o
+# Service Worker guarda exatamente o que o celular vai usar.
+#
+# Uso: docker compose -f docker-compose.yml -f docker-compose.pwa.yml up -d frontend
+services:
+  frontend:
+    command: sh -c "npm run build && npm run start"

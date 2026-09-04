@@ -19,6 +19,7 @@ services:
       - "${TRAEFIK_DASHBOARD_PORT:-8090}:8080"
     volumes:
       - ./traefik/dinamico:/etc/traefik/dinamico:ro
+      - ./traefik/certificados:/etc/traefik/certificados:ro
       - ./volumes/letsencrypt:/letsencrypt
     networks: [engorda]
 

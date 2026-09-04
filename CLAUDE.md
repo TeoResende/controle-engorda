@@ -278,6 +278,88 @@ a fila offline reenviar sem medo.
 - Pesagem errada é **desativada**, não apagada: sai da série mas continua
   auditável.
 
+## 8.3. App do técnico e NFC (M5 + M6)
+
+### Telas
+
+`/tecnico` (início) · `/tecnico/ler` (NFC) · `/tecnico/coleta?brinco=` ·
+`/tecnico/confirmacao` · `/tecnico/animal/novo` — as 5 do layout. Mais três de
+apoio: `/tecnico/login`, `/tecnico/offline` e `/tecnico/gravar` (grava a tag
+NTAG213 de um brinco; sem ela não haveria como preparar brinco para testar, e
+depender de app de terceiros não escala para centenas de animais).
+
+### O que sobrevive sem sinal, e o que não
+
+| Ação | Offline? |
+|---|---|
+| Abrir o app | sim — Service Worker com o app shell |
+| Ler tag NFC | sim |
+| Registrar peso | sim — vai para a fila no IndexedDB |
+| Ver de que animal é o brinco | sim — cópia local do rebanho, baixada no login |
+| **Cadastrar animal novo** | **não** |
+| Primeiro login | não |
+
+O cadastro de animal exige internet de propósito: o animal nasce com id do
+servidor. Criar ids locais para animais abriria a porta para dois cadastros do
+mesmo bicho vindos de dois aparelhos, e aí o histórico de peso se parte em dois.
+A pesagem é o que não pode esperar; o cadastro pode.
+
+### Motor de sincronização
+
+A ordem é: envia → servidor confirma → **só então** apaga a cópia local. Se a
+conexão cai no meio, o registro fica na fila e sobe depois; como o id nasce no
+celular, reenviar não duplica (M4). Uma pesagem que o servidor **recusa** (brinco
+inexistente, por exemplo) fica na fila com o motivo à vista — erro de dado não se
+resolve sozinho, e o técnico precisa saber para corrigir.
+
+Dispara sozinho ao abrir o app, ao voltar o sinal (evento `online`) e depois de
+cada peso salvo. Envia em blocos de 200, em ordem de coleta.
+
+Coberto por `frontend/testes/sync.test.ts` (Dexie real sobre `fake-indexeddb`, não
+dublê). É o código de maior risco do projeto: perder pesagem coletada no curral é
+um defeito silencioso — ninguém percebe até procurarem o peso e ele não estar lá.
+
+### NFC
+
+A tag é gravada com a **URL de coleta inteira**, não só com o número. É o que faz
+encostar o celular funcionar com o app fechado: o Android abre a URL direto na
+tela de coleta. `brincoDoTexto()` aceita a URL ou o número puro.
+
+### HTTPS na rede local
+
+Service Worker, PWA instalável e Web NFC só funcionam em **contexto seguro** —
+sem HTTPS, M5 e M6 não são testáveis em celular, só no localhost da máquina de
+desenvolvimento. Por isso existe um certificado autoassinado em
+`traefik/certificados/` (gerado com `openssl`, SANs para os hosts `.nip.io`, os
+`.localhost` e o IP). O navegador avisa que não confia; aceitar a exceção uma vez
+basta. No M9 quem emite é o Let's Encrypt e este certificado sai de cena.
+
+### A API responde em `/api`, no mesmo domínio do app
+
+`https://app.<ip>.nip.io:8443/api/...` → Traefik tira o prefixo e manda para o
+backend. Isso resolve três coisas de uma vez que atrapalhariam o PWA: conteúdo
+misto (app em https não pode chamar API em http), aceitar o certificado duas
+vezes (dois hosts) e CORS. `NEXT_PUBLIC_API_URL=/api` no `.env`.
+
+### Como testar no celular Android
+
+1. Suba o frontend em modo produção — em `next dev` os chunks mudam a cada
+   compilação e o HMR abre um websocket que falha sem rede, então "abrir em modo
+   avião" não prova nada:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.pwa.yml up -d frontend
+   ```
+2. No Chrome do Android, abra `https://app.192.168.0.130.nip.io:8443/tecnico` e
+   aceite o aviso de certificado.
+3. Entre com `tecnico@teste.com` / `engorda123` e escolha a fazenda.
+4. Menu do Chrome → *Instalar app*. Abra pelo ícone.
+5. **Teste offline:** ligue o modo avião, abra o app pelo ícone, registre um
+   peso. A faixa do topo mostra a fila. Desligue o modo avião e veja a fila
+   zerar sozinha.
+6. **Teste NFC:** em *Gravar tag de um brinco*, escreva `1002` numa NTAG213.
+   Volte ao início, toque em *Ler brinco* e encoste o celular na tag — a tela de
+   coleta abre com o brinco preenchido.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -289,8 +371,8 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M2** — login JWT, papel por fazenda, isolamento automático + suíte pytest
 - [x] **M3** — CRUD de fazendas, membros, lotes e animais; admin master, primeiro acesso e soft delete (67 testes)
 - [x] **M4** — pesagem com idempotência pelo UUID do cliente (88 testes)
-- [ ] M5 — PWA do técnico
-- [ ] M6 — NFC
+- [x] **M5** — PWA offline do técnico (Service Worker, IndexedDB, motor de sync)
+- [x] **M6** — leitura e gravação de tag NFC *(falta validar em celular real)*
 - [ ] M7 — áudio + transcrição
 - [ ] M8 — dashboard
 - [ ] M9 — deploy VPS
@@ -309,6 +391,7 @@ Rodar os testes:
 
 ```bash
 docker compose exec backend pytest -q
+docker compose exec frontend npm run test
 ```
 
 A suíte usa um banco Postgres separado (`engorda_test`), recriado a cada
