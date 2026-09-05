@@ -1,20 +1,25 @@
 /*
  * Service Worker do app do técnico.
  *
- * Escopo /tecnico: o dashboard do cliente é sempre online e não pode herdar
- * cache agressivo. O script mora na raiz porque escopo mais estreito que o
- * diretório do script é permitido — o contrário não seria.
- *
  * O que ele resolve: o app inteiro precisa ABRIR offline, não só guardar dados.
  * Sem o app shell em cache, o técnico no curral sem sinal vê a tela de
  * dinossauro.
+ *
+ * **Escopo `/`, comportamento restrito a `/tecnico`.** O escopo precisa ser a
+ * raiz porque quem digita o endereço digita o curto — sem barra nenhuma — e
+ * fora do escopo o worker sequer é consultado, então a página não abre offline
+ * por mais bem guardada que esteja. Mas só `/` e `/tecnico/**` são servidos do
+ * cache: o dashboard do cliente passa direto para a rede, porque lá dado velho
+ * é pior que erro de rede.
  */
 
-const VERSAO = "v2";
+const VERSAO = "v4";
 const CACHE_SHELL = `engorda-shell-${VERSAO}`;
 
 // Rotas do app que precisam abrir sem rede.
 const TELAS = [
+  // A raiz entra porque é o endereço que as pessoas digitam.
+  "/",
   "/tecnico",
   "/tecnico/ler",
   "/tecnico/coleta",
@@ -30,27 +35,51 @@ const TELAS = [
 ];
 
 /**
+ * Extrai caminhos de `/_next/static/...` de um texto (HTML ou CSS).
+ *
+ * A barra invertida está fora da classe de caracteres de propósito: o Next
+ * embute esses caminhos em JSON escapado dentro do próprio HTML
+ * (`\"/_next/static/…\"`), e sem excluí-la a URL saía com uma barra a mais no
+ * fim — virando 404 e deixando o arquivo fora do cache justamente enquanto
+ * tudo parecia ter dado certo.
+ */
+function extrairRecursos(texto) {
+  const achados = new Set();
+  for (const m of texto.matchAll(/\/_next\/static\/[^"'()\s\\]+/g)) achados.add(m[0]);
+  return achados;
+}
+
+async function guardar(cache, url) {
+  if (await cache.match(url)) return null;
+  const resposta = await fetch(url);
+  if (!resposta.ok) return null;
+  await cache.put(url, resposta.clone());
+  return resposta;
+}
+
+/**
  * Guardar o HTML de uma tela não basta: sem os scripts que ela referencia, o
- * navegador abre offline e mostra uma página em branco. Aqui o HTML é lido, os
- * caminhos de `/_next/static/...` são extraídos e vão para o cache junto.
+ * navegador abre offline e mostra uma página em branco.
+ *
+ * E não basta varrer o HTML: as **fontes** são declaradas dentro do CSS, não da
+ * página. Sem elas o app abre offline com a tipografia do sistema — funciona,
+ * mas denuncia. Por isso cada CSS guardado é lido de novo em busca dos seus
+ * próprios recursos.
  */
 async function guardarTelaComRecursos(cache, tela) {
   const resposta = await fetch(tela, { credentials: "same-origin" });
   if (!resposta.ok) return;
-
   await cache.put(tela, resposta.clone());
 
-  const html = await resposta.text();
-  const recursos = new Set();
-  for (const achado of html.matchAll(/["'(](\/_next\/static\/[^"')\s]+)["')]/g)) {
-    recursos.add(achado[1]);
-  }
+  const recursos = extrairRecursos(await resposta.text());
 
   await Promise.allSettled(
     [...recursos].map(async (url) => {
-      if (await cache.match(url)) return;
-      const r = await fetch(url);
-      if (r.ok) await cache.put(url, r);
+      const guardada = await guardar(cache, url);
+      if (!guardada || !url.endsWith(".css")) return;
+
+      const dentroDoCss = extrairRecursos(await guardada.text());
+      await Promise.allSettled([...dentroDoCss].map((u) => guardar(cache, u)));
     }),
   );
 }
@@ -96,9 +125,13 @@ self.addEventListener("fetch", (evento) => {
   if (url.origin !== self.location.origin) return; // API e CDNs passam direto
   if (url.pathname.startsWith("/api/")) return; // dados nunca vêm do cache
 
+  // Só o app do técnico e a raiz são servidos do cache. Tudo o mais — o
+  // dashboard, acima de tudo — passa direto para a rede.
+  const doTecnico = url.pathname === "/" || url.pathname.startsWith("/tecnico");
+
   // Navegação: tenta a rede, cai no cache. Assim o app abre offline, e online
   // continua pegando a versão nova sem esperar o SW atualizar.
-  if (requisicao.mode === "navigate") {
+  if (requisicao.mode === "navigate" && doTecnico) {
     evento.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_SHELL);
@@ -110,6 +143,7 @@ self.addEventListener("fetch", (evento) => {
           return (
             (await cache.match(url.pathname)) ??
             (await cache.match("/tecnico")) ??
+            (await cache.match("/")) ??
             (await cache.match("/tecnico/offline")) ??
             new Response("Offline", {
               status: 503,

@@ -473,6 +473,24 @@ usuário mexer no lugar errado. Coberto por `frontend/testes/api.test.ts`.
 | Primeiro login | não |
 | Dashboard do cliente | não (sem Service Worker, de propósito) |
 
+**O escopo do worker é a raiz `/`, mas só `/` e `/tecnico/**` saem do cache.** O
+escopo precisa ser a raiz porque quem digita o endereço digita o curto, sem
+caminho nenhum — e fora do escopo o worker sequer é consultado, então a página
+não abre offline por melhor que esteja guardada. O dashboard passa direto para a
+rede: lá dado velho é pior que erro de rede.
+
+**Guardar o HTML não basta.** Sem os scripts, o app abre offline em branco; sem
+as fontes — que são declaradas dentro do CSS e não da página — abre com a
+tipografia do sistema. O `install` varre o HTML, guarda os `/_next/static`, e
+relê cada CSS guardado atrás dos recursos dele. O padrão exclui a barra
+invertida de propósito: o Next embute esses caminhos em JSON escapado dentro do
+próprio HTML, e sem isso a URL saía com uma barra a mais, virava 404 e o arquivo
+ficava fora do cache enquanto tudo parecia ter dado certo.
+
+**`/tecnico/mais` tem um diagnóstico de uso offline** que diz qual das quatro
+condições falhou — contexto seguro, worker ativo, telas guardadas, rebanho
+baixado — e um botão *Preparar para o campo*. "Não funcionou" não é acionável.
+
 **Dois pré-requisitos, e sem eles o teste não prova nada:**
 
 1. **HTTPS.** Sem contexto seguro o Service Worker não registra e o app

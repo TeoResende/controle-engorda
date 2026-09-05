@@ -7,6 +7,7 @@ import { AvisoInseguro } from "@/components/aviso-inseguro";
 import { BarraSuperior, NavegacaoInferior } from "@/components/barra-tecnico";
 import { LinkBotao } from "@/components/ui";
 import { lerSessao } from "@/lib/sessao";
+import { registrarWorker } from "@/lib/worker";
 import {
   baixarIdentidade,
   identidadeGuardada,
@@ -25,20 +26,10 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
   const [semPermissao, setSemPermissao] = useState(false);
   const [identidade, setIdentidade] = useState<Identidade | null>(null);
 
-  // Service Worker escopado em /tecnico: é o que faz o app ABRIR sem sinal. O
-  // dashboard do cliente fica de fora — lá cache agressivo só atrapalharia.
+  // Service Worker: é o que faz o app ABRIR sem sinal. Escopo na raiz, mas só
+  // serve /tecnico do cache — o dashboard do cliente passa direto para a rede.
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker
-      .register("/sw.js", { scope: "/tecnico" })
-      .then(() => {
-        // Reaquece o cache assim que há sinal: telas novas de um deploy
-        // recente entram antes de o técnico voltar para o curral.
-        if (navigator.onLine) navigator.serviceWorker.ready.then((r) => r.active?.postMessage("reaquecer"));
-      })
-      .catch(() => {
-        // Sem HTTPS o registro falha; o app segue, só não abre offline.
-      });
+    void registrarWorker();
   }, []);
 
   useEffect(() => {

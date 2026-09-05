@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Brinco, Seta, Sincronizar } from "@/components/icones";
+import { DiagnosticoOffline } from "@/components/diagnostico-offline";
 import { Cabecalho, Cartao } from "@/components/ui";
 import { db, lerMeta } from "@/lib/db";
 import { limparSessao } from "@/lib/sessao";
@@ -67,6 +68,8 @@ export default function MaisOpcoes() {
           </Link>
         </li>
       </ul>
+
+      <DiagnosticoOffline />
 
       <Cartao>
         <p className="text-xs font-bold uppercase tracking-wider text-verde/50">No aparelho</p>

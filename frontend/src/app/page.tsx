@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { RegistrarWorker } from "@/components/registrar-worker";
 import { api } from "@/lib/api";
 
 type SetupStatus = { precisa_configuracao: boolean };
@@ -29,6 +30,7 @@ export default function Home() {
   if (verificando) {
     return (
       <main className="flex min-h-screen items-center justify-center p-6">
+        <RegistrarWorker />
         <p className="text-sm text-verde/60">Carregando…</p>
       </main>
     );
@@ -36,6 +38,7 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 p-6">
+      <RegistrarWorker />
       <div>
         <h1 className="font-titulo text-3xl font-extrabold text-verde">Engorda</h1>
         <p className="mt-1 text-sm text-verde/70">
