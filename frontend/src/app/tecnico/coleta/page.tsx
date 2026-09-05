@@ -7,6 +7,7 @@ import { Gravador } from "@/components/gravador";
 import { Aviso, Botao, Cabecalho, Campo, LinkBotao } from "@/components/ui";
 import { animalPorBrinco, type AnimalLocal } from "@/lib/db";
 import { enfileirar, sincronizar } from "@/lib/sync";
+import { novoUuid } from "@/lib/uuid";
 
 /**
  * Tela 3 — Coleta de peso.
@@ -51,7 +52,9 @@ function Conteudo() {
     const agora = new Date();
     await enfileirar({
       // UUID criado aqui, offline: é ele que impede o reenvio de duplicar.
-      id: crypto.randomUUID(),
+      // Não usa crypto.randomUUID direto — ele não existe fora de contexto
+      // seguro, e o app roda em http na rede local.
+      id: novoUuid(),
       animal_id: animal?.id ?? null,
       brinco,
       data: agora.toISOString().slice(0, 10),

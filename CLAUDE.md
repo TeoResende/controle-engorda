@@ -329,6 +329,27 @@ A tag é gravada com a **URL de coleta inteira**, não só com o número. É o q
 encostar o celular funcionar com o app fechado: o Android abre a URL direto na
 tela de coleta. `brincoDoTexto()` aceita a URL ou o número puro.
 
+### O que http puro desliga em silêncio
+
+Fora de contexto seguro o navegador remove, sem erro visível, quatro coisas de
+que este app depende:
+
+| Recurso | Sem HTTPS |
+|---|---|
+| Service Worker (abrir offline) | não registra |
+| Web NFC | API inexistente |
+| `MediaRecorder` / microfone | indisponível |
+| `crypto.randomUUID` | **`undefined`** |
+
+O último quebrava a coleta inteira: o UUID é a chave de idempotência do envio, e
+sem ele não havia como registrar peso. `lib/uuid.ts` monta o UUID v4 a partir de
+`crypto.getRandomValues`, que não tem restrição de contexto. **Ao usar qualquer
+API de navegador nova, checar antes se ela exige contexto seguro** — a falha é
+silenciosa e só aparece no aparelho.
+
+O app avisa quando está em http (`components/aviso-inseguro.tsx`), dizendo o que
+funciona e o que não, para ninguém concluir que o sistema está quebrado.
+
 ### HTTPS na rede local
 
 Service Worker, PWA instalável e Web NFC só funcionam em **contexto seguro** —

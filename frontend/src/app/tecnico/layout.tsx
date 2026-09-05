@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { AvisoInseguro } from "@/components/aviso-inseguro";
 import { EstadoConexao } from "@/components/estado-conexao";
 import { lerSessao } from "@/lib/sessao";
 import { sincronizarTudo } from "@/lib/sync";
@@ -42,6 +43,7 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
 
   return (
     <div className="flex min-h-screen flex-col">
+      <AvisoInseguro />
       {!PUBLICAS.includes(caminho) && <EstadoConexao />}
       <div className="mx-auto w-full max-w-md flex-1 p-5">{children}</div>
     </div>
