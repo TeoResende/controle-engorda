@@ -21,7 +21,14 @@ Requisitos: Docker e Docker Compose.
 cp .env.example .env
 ./traefik/gerar-certificados.sh          # certificados de desenvolvimento
 docker compose up -d --build
-docker compose exec backend alembic upgrade head
+```
+
+Só isso. As migrations rodam sozinhas na subida — a primeira tela cria o
+administrador e a primeira fazenda.
+
+Para carregar dados de demonstração (opcional, e nunca em produção):
+
+```bash
 docker compose exec backend python -m app.seed
 ```
 
@@ -43,8 +50,9 @@ docker compose exec backend python -m app.seed
 | `joao@teste.com` | cliente da Fazenda Boa Vista |
 | `marina@teste.com` | cliente da Fazenda Santa Clara |
 
-Numa instalação vazia, a primeira tela cria o administrador e a primeira
-fazenda.
+Uma segunda instância no mesmo servidor — homologação ao lado de produção —
+sobe com `docker compose -p homologacao up -d`, isolada: containers, rede e
+volumes são nomeados por projeto.
 
 ---
 

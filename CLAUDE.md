@@ -905,9 +905,23 @@ que roda `npm run build` como comando do container.
 ```bash
 cp .env.example .env
 docker compose up -d --build
-docker compose exec backend alembic upgrade head
-docker compose exec backend python -m app.seed          # --reset recria do zero
+docker compose exec backend python -m app.seed          # opcional; --reset recria
 ```
+
+**As migrations rodam na subida do container** (`backend/entrada.sh` →
+`app/migrar.py`). Sem isso, instalar em outro servidor exigia um comando que,
+esquecido, deixava `/setup/status` respondendo 500 — o produto parecia quebrado
+no primeiro contato. Backend e worker sobem juntos, então um *advisory lock* do
+Postgres evita que os dois migrem ao mesmo tempo. `MIGRAR_AO_SUBIR=0` desliga,
+para deploys com várias réplicas em que a migration deve ser um passo
+controlado.
+
+**Nada de `container_name` nem de `name:` na rede.** Os dois impedem uma segunda
+instância no mesmo servidor, e o nome de rede fixo é pior que impedir: as
+instâncias entram na mesma rede e `postgres` resolve para qualquer um dos dois
+bancos — uma instalação de homologação falaria com o banco de produção sem
+avisar. Isso apareceu ao testar uma instalação limpa em paralelo, e passou
+despercebido até então porque só existia uma instância.
 
 Rodar os testes:
 

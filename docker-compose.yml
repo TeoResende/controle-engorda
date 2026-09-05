@@ -1,7 +1,11 @@
+# Nem os serviços fixam `container_name`, nem a rede fixa `name`: os dois
+# impediriam rodar uma segunda instância no mesmo servidor — e o nome de rede
+# fixo é pior que impedir, porque as instâncias se enxergariam e `postgres`
+# resolveria para o banco errado. Com o compose nomeando por projeto,
+# `-p homologacao` sobe um ambiente inteiro e isolado ao lado.
 services:
   traefik:
     image: traefik:v3.5
-    container_name: engorda-traefik
     restart: unless-stopped
     command:
       - --providers.file.directory=/etc/traefik/dinamico
@@ -25,7 +29,6 @@ services:
 
   postgres:
     image: postgres:16-alpine
-    container_name: engorda-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -44,7 +47,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: engorda-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
@@ -58,7 +60,6 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2024-12-18T13-15-44Z
-    container_name: engorda-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -76,7 +77,6 @@ services:
   # Cria o bucket de áudios de observação uma vez e sai.
   minio-init:
     image: minio/mc:RELEASE.2024-11-21T17-21-54Z
-    container_name: engorda-minio-init
     depends_on:
       minio:
         condition: service_healthy
@@ -90,7 +90,6 @@ services:
 
   backend:
     build: ./backend
-    container_name: engorda-backend
     restart: unless-stopped
     user: "${UID_HOST:-1000}:${GID_HOST:-1000}"
     # --proxy-headers faz o uvicorn ler X-Forwarded-Proto: sem isso, atrás de
@@ -115,6 +114,7 @@ services:
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
       LOG_LEVEL: ${LOG_LEVEL}
       CORS_ORIGENS: ${CORS_ORIGENS:-*}
+      MIGRAR_AO_SUBIR: ${MIGRAR_AO_SUBIR:-1}
       PROXIES_CONFIAVEIS: ${PROXIES_CONFIAVEIS:-*}
       TZ: ${TZ:-America/Sao_Paulo}
     volumes:
@@ -134,7 +134,6 @@ services:
 
   worker:
     build: ./backend
-    container_name: engorda-worker
     restart: unless-stopped
     user: "${UID_HOST:-1000}:${GID_HOST:-1000}"
     command: arq app.worker.WorkerSettings
@@ -172,7 +171,6 @@ services:
 
   frontend:
     build: ./frontend
-    container_name: engorda-frontend
     restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
@@ -185,5 +183,8 @@ services:
     networks: [engorda]
 
 networks:
+  # Sem `name:` fixo de propósito. Com um nome fixo, duas instâncias no mesmo
+  # servidor entram na MESMA rede e `postgres` passa a resolver para qualquer um
+  # dos dois bancos — uma instalação de homologação falaria com o banco de
+  # produção sem avisar ninguém. Assim o compose prefixa a rede por projeto.
   engorda:
-    name: engorda

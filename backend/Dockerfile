@@ -13,5 +13,8 @@ COPY requirements.txt requirements-dev.txt ./
 RUN pip install --no-cache-dir -r requirements-dev.txt
 
 COPY . .
+RUN chmod +x entrada.sh
 
+# O entrypoint aplica as migrations antes de iniciar o processo — ver entrada.sh.
+ENTRYPOINT ["./entrada.sh"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
