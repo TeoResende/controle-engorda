@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { api, ErroApi } from "@/lib/api";
+import { api, SemConexao } from "@/lib/api";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
 
 type SetupStatus = { precisa_configuracao: boolean };
@@ -46,7 +46,13 @@ export default function PrimeiroAcesso() {
       salvarSessao(sessao);
       router.replace("/dashboard");
     } catch (e) {
-      setErro(e instanceof ErroApi ? e.message : "Não foi possível concluir");
+      setErro(
+        e instanceof SemConexao
+          ? "Não consegui falar com o servidor. Verifique se a API está no ar."
+          : e instanceof Error
+            ? e.message
+            : "Não foi possível concluir",
+      );
       setEnviando(false);
     }
   }

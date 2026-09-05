@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Aviso, Botao, Cabecalho, Campo } from "@/components/ui";
-import { API_URL } from "@/lib/api";
+import { api, ErroApi, SemConexao } from "@/lib/api";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
 
 type Fazenda = { fazenda_id: string; nome: string; papel: string };
@@ -20,29 +20,22 @@ export default function LoginCliente() {
     setErro(null);
     setEntrando(true);
     try {
-      const resposta = await fetch(`${API_URL}/auth/login`, {
+      const sessao = await api<Sessao>("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha, fazenda_id: fazenda_id ?? null }),
       });
-      const dados = await resposta.json();
-
-      if (resposta.status === 409) {
-        setCredenciais({ email, senha });
-        setFazendas(dados.detail.fazendas as Fazenda[]);
-        setEntrando(false);
-        return;
-      }
-      if (!resposta.ok) {
-        setErro(typeof dados.detail === "string" ? dados.detail : "Não foi possível entrar");
-        setEntrando(false);
-        return;
-      }
-
-      salvarSessao(dados as Sessao);
+      salvarSessao(sessao);
       router.replace("/dashboard");
-    } catch {
-      setErro("Não consegui falar com o servidor.");
+    } catch (e) {
+      if (e instanceof SemConexao) {
+        setErro("Não consegui falar com o servidor. Verifique a conexão.");
+      } else if (e instanceof ErroApi && e.status === 409) {
+        const detalhe = (e.corpo as { detail?: { fazendas?: Fazenda[] } })?.detail;
+        setCredenciais({ email, senha });
+        setFazendas(detalhe?.fazendas ?? []);
+      } else {
+        setErro(e instanceof Error ? e.message : "Não foi possível entrar");
+      }
       setEntrando(false);
     }
   }

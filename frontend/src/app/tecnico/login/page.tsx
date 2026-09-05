@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Aviso, Botao, Cabecalho, Campo } from "@/components/ui";
-import { API_URL } from "@/lib/api";
+import { api, ErroApi, SemConexao } from "@/lib/api";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
 import { baixarRebanho } from "@/lib/sync";
 
@@ -23,26 +23,11 @@ export default function Login() {
     setErro(null);
     setEntrando(true);
     try {
-      const resposta = await fetch(`${API_URL}/auth/login`, {
+      const sessao = await api<Sessao>("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, senha, fazenda_id: fazenda_id ?? null }),
       });
-      const dados = await resposta.json();
-
-      if (resposta.status === 409) {
-        setCredenciais({ email, senha });
-        setFazendas(dados.detail.fazendas as Fazenda[]);
-        setEntrando(false);
-        return;
-      }
-      if (!resposta.ok) {
-        setErro(typeof dados.detail === "string" ? dados.detail : "Não foi possível entrar");
-        setEntrando(false);
-        return;
-      }
-
-      salvarSessao(dados as Sessao);
+      salvarSessao(sessao);
       // Baixa o rebanho antes de soltar o técnico no curral: sem essa cópia, a
       // coleta offline não sabe de que animal é o brinco.
       try {
@@ -51,8 +36,17 @@ export default function Login() {
         // Rebanho é conveniência; a coleta por brinco funciona mesmo sem ele.
       }
       router.replace("/tecnico");
-    } catch {
-      setErro("Sem conexão. O primeiro acesso precisa de internet.");
+    } catch (e) {
+      if (e instanceof SemConexao) {
+        setErro("Sem conexão. O primeiro acesso precisa de internet.");
+      } else if (e instanceof ErroApi && e.status === 409) {
+        // O 409 traz a lista de fazendas de quem atende mais de uma.
+        const detalhe = (e.corpo as { detail?: { fazendas?: Fazenda[] } })?.detail;
+        setCredenciais({ email, senha });
+        setFazendas(detalhe?.fazendas ?? []);
+      } else {
+        setErro(e instanceof Error ? e.message : "Não foi possível entrar");
+      }
       setEntrando(false);
     }
   }

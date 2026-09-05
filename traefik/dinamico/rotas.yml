@@ -50,7 +50,22 @@ http:
       entryPoints: [web]
       service: minio
 
-    # Qualquer host não reconhecido (ex.: http://192.168.0.130:8081) abre o app.
+    # Qualquer host não reconhecido (ex.: http://192.168.0.130:8081) abre o app —
+    # e /api precisa acompanhar, senão a chamada da API cai no 404 do Next e o
+    # app reporta "sem conexão" quando o problema é de roteamento.
+    padrao_api:
+      rule: "PathPrefix(`/api`)"
+      priority: 10
+      entryPoints: [web]
+      middlewares: [tira-api]
+      service: backend
+    padrao_api_tls:
+      rule: "PathPrefix(`/api`)"
+      priority: 10
+      entryPoints: [websecure]
+      tls: {}
+      middlewares: [tira-api]
+      service: backend
     padrao:
       rule: "PathPrefix(`/`)"
       priority: 1

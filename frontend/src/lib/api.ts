@@ -8,12 +8,21 @@ export class ErroApi extends Error {
   constructor(
     readonly status: number,
     mensagem: string,
+    /** Corpo já decodificado, quando veio JSON. O login lê a lista de fazendas
+     *  do 409 daqui. */
+    readonly corpo: unknown = null,
   ) {
     super(mensagem);
   }
 }
 
-/** Falha de rede: o pedido nem chegou ao servidor. Diferente de erro do servidor. */
+/**
+ * Falha de rede: o pedido nem chegou ao servidor.
+ *
+ * Só isto é "sem conexão". Confundir com resposta inesperada faria toda falha
+ * de rota ou de servidor virar "você está sem internet" — mensagem que manda o
+ * usuário procurar o problema no lugar errado.
+ */
 export class SemConexao extends Error {
   constructor() {
     super("Sem conexão");
@@ -44,16 +53,50 @@ async function bruto(caminho: string, opcoes: RequestInit): Promise<Response> {
   }
 }
 
+/**
+ * Lê a resposta com tolerância a corpo não-JSON.
+ *
+ * Um proxy mal roteado devolve HTML com 200 ou 404, e o `JSON.parse` estoura —
+ * o erro chegava no `catch` genérico da tela como se fosse falha de rede.
+ */
+async function interpretar<T>(resposta: Response): Promise<T> {
+  const texto = await resposta.text();
+
+  let corpo: unknown = null;
+  let decodificou = true;
+  if (texto) {
+    try {
+      corpo = JSON.parse(texto);
+    } catch {
+      decodificou = false;
+    }
+  }
+
+  if (!resposta.ok) {
+    throw new ErroApi(
+      resposta.status,
+      decodificou
+        ? mensagemDoErro(corpo, resposta.status)
+        : `Erro ${resposta.status} do servidor`,
+      corpo,
+    );
+  }
+  if (!decodificou) {
+    throw new ErroApi(
+      resposta.status,
+      "Resposta inesperada do servidor (não veio JSON). Confira o endereço da API.",
+    );
+  }
+  return corpo as T;
+}
+
 /** Chamada pública, sem token (login, status de instalação). */
 export async function api<T>(caminho: string, opcoes: RequestInit = {}): Promise<T> {
   const resposta = await bruto(caminho, {
     ...opcoes,
     headers: { "Content-Type": "application/json", ...(opcoes.headers ?? {}) },
   });
-  const texto = await resposta.text();
-  const corpo = texto ? JSON.parse(texto) : null;
-  if (!resposta.ok) throw new ErroApi(resposta.status, mensagemDoErro(corpo, resposta.status));
-  return corpo as T;
+  return interpretar<T>(resposta);
 }
 
 async function renovar(sessao: Sessao): Promise<Sessao | null> {
@@ -105,8 +148,5 @@ export async function apiAuth<T>(caminho: string, opcoes: RequestInit = {}): Pro
     resposta = await chamar(sessao.access_token);
   }
 
-  const texto = await resposta.text();
-  const corpo = texto ? JSON.parse(texto) : null;
-  if (!resposta.ok) throw new ErroApi(resposta.status, mensagemDoErro(corpo, resposta.status));
-  return corpo as T;
+  return interpretar<T>(resposta);
 }

@@ -341,6 +341,21 @@ backend. Isso resolve três coisas de uma vez que atrapalhariam o PWA: conteúdo
 misto (app em https não pode chamar API em http), aceitar o certificado duas
 vezes (dois hosts) e CORS. `NEXT_PUBLIC_API_URL=/api` no `.env`.
 
+**Toda rota de app precisa de uma rota `/api` irmã.** O router `padrao` manda
+host desconhecido (o IP puro, por exemplo) para o frontend; sem o `padrao_api`
+correspondente, a chamada da API caía no 404 do Next e o app dizia "sem
+conexão" — mandando procurar o problema na rede quando ele era de roteamento.
+Ao mexer em `traefik/dinamico/rotas.yml`, o par tem que andar junto.
+
+### "Sem conexão" só quando é sem conexão
+
+`SemConexao` é lançado **apenas** quando o `fetch` rejeita, isto é, quando a
+requisição não chegou ao servidor. Resposta que chegou mas não é JSON (HTML de
+404, página de erro de proxy) vira `ErroApi` com o status e uma mensagem que
+aponta para o endereço da API. Confundir os dois transforma qualquer falha de
+rota em "você está sem internet", que é o pior diagnóstico possível: manda o
+usuário mexer no lugar errado. Coberto por `frontend/testes/api.test.ts`.
+
 ### Como testar no celular Android
 
 1. Suba o frontend em modo produção — em `next dev` os chunks mudam a cada
