@@ -1,3 +1,4 @@
--r requirements.txt
+# Os testes cobrem os dois lados, então trazem também o que é do worker.
+-r requirements-worker.txt
 pytest==8.3.4
 pytest-asyncio==0.26.0

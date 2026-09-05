@@ -9,8 +9,14 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl build-essential libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements-dev.txt
+# Uma imagem por perfil: a API não carrega as bibliotecas de transcrição, que
+# pesam ~350 MB e só o worker executa.
+ARG PERFIL=api
+
+COPY requirements.txt requirements-worker.txt requirements-dev.txt ./
+RUN if [ "$PERFIL" = "dev" ]; then pip install --no-cache-dir -r requirements-dev.txt; \
+    elif [ "$PERFIL" = "worker" ]; then pip install --no-cache-dir -r requirements-worker.txt; \
+    else pip install --no-cache-dir -r requirements.txt; fi
 
 COPY . .
 RUN chmod +x entrada.sh

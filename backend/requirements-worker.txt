@@ -1,0 +1,10 @@
+-r requirements.txt
+
+# Transcrição local, usada só pelo worker.
+#
+# Pesa ~350 MB em bibliotecas nativas (ctranslate2, onnxruntime, av, numpy) e a
+# API nunca as executa — ela só enfileira o job. Instalar tudo nas duas imagens
+# dobrava esse custo à toa.
+faster-whisper==1.1.0
+# faster-whisper 1.1.0 importa requests sem declarar a dependência.
+requests==2.32.3

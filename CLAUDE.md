@@ -868,6 +868,45 @@ em http" é sintoma comum e impossível de diagnosticar às cegas.
 Em produção, apertar `CORS_ORIGENS` para o domínio real: o app é servido do mesmo
 domínio da API (rota `/api`), então não há motivo para deixar `*`.
 
+## 8.11. Peso e tempo de carga
+
+Três números que confundem, e não têm relação entre si:
+
+| O que | Quanto | Quando |
+|---|---|---|
+| Página em **produção** | ~150 KB de JS | a cada visita, e depois vem do cache |
+| Página em **desenvolvimento** | **~9 MB** de JS | a cada visita |
+| Modelo do Whisper | **~464 MB** | uma vez, no primeiro áudio que cair no Whisper local |
+| Imagem do backend | 838 MB (perfil `api`) | no build |
+| Imagem do worker | 1,41 GB | no build |
+
+**Não é o modo offline.** O Service Worker guarda o que a página já baixou; ele
+não acrescenta peso, e depois da primeira visita reduz.
+
+**`next dev` serve o JavaScript sem minificar** — nove megabytes por página
+contra cento e cinquenta quilobytes do build. Se o app parece lento, confira
+antes de tudo em que modo o frontend está:
+
+```bash
+docker compose ps frontend                                        # qual comando roda
+docker compose -f docker-compose.yml -f docker-compose.pwa.yml up -d frontend
+```
+
+**O modelo do Whisper é o "quase 500 MB".** Baixa uma vez e fica em
+`volumes/modelos`. Para evitá-lo: configure `TRANSCRICAO_API_CHAVE` (a API
+externa é tentada primeiro) ou use `WHISPER_MODELO_LOCAL=tiny` (~75 MB, com
+perda de qualidade em português). Vale pré-aquecer no deploy, para o download não
+cair no meio de um dia de campo:
+
+```bash
+docker compose exec worker python -m app.transcricao
+```
+
+**A imagem da API não carrega as bibliotecas de transcrição.** São ~350 MB de
+`ctranslate2`, `onnxruntime` e `av` que só o worker executa — a API apenas
+enfileira o job. O `Dockerfile` recebe `PERFIL` (`api`, `worker` ou `dev`), e o
+compose escolhe: `PERFIL_BACKEND=api` no `.env` de produção.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.

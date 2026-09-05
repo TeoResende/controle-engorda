@@ -27,6 +27,11 @@ services:
       - "443:443"
 
   backend:
+    # Sem as ferramentas de teste nem as bibliotecas de transcrição.
+    build:
+      context: ./backend
+      args:
+        PERFIL: api
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers --forwarded-allow-ips ${PROXIES_CONFIAVEIS:-*}

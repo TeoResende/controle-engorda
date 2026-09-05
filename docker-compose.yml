@@ -89,7 +89,11 @@ services:
     networks: [engorda]
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      # "dev" traz também as ferramentas de teste; em produção use "api".
+      args:
+        PERFIL: ${PERFIL_BACKEND:-dev}
     restart: unless-stopped
     user: "${UID_HOST:-1000}:${GID_HOST:-1000}"
     # --proxy-headers faz o uvicorn ler X-Forwarded-Proto: sem isso, atrás de
@@ -133,7 +137,10 @@ services:
     networks: [engorda]
 
   worker:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        PERFIL: worker
     restart: unless-stopped
     user: "${UID_HOST:-1000}:${GID_HOST:-1000}"
     command: arq app.worker.WorkerSettings
