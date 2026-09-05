@@ -20,6 +20,21 @@ logger = logging.getLogger("transcricao")
 
 _modelo_local = None
 
+# Vocabulário de contexto passado ao modelo antes de transcrever.
+#
+# O Whisper foi treinado em fala geral e não conhece o jargão do curral: sem
+# isto, "carrapato" vira "cara-pato", "cocho" vira "coxo" e "brinco" vira
+# "brinquedo". Uma frase de exemplo com os termos certos inclina o modelo para o
+# domínio — é barato, não exige treino e melhora justamente as palavras que
+# importam para quem lê a observação depois.
+CONTEXTO = (
+    "Observação de campo em fazenda de gado de corte. "
+    "Termos comuns: brinco, bezerro, novilha, boi, cocho, carrapato, "
+    "berne, bicheira, casco, claudicação, mancando, apartado, lote, "
+    "pasto, confinamento, vermifugado, vacinado, arroba, ganho de peso, "
+    "magro, gordo, pelo, chifre, orelha, pata, pescoço, úbere."
+)
+
 
 class FalhaNaTranscricao(Exception):
     pass
@@ -34,7 +49,14 @@ async def _via_api_externa(audio: bytes, nome: str) -> str:
             settings.transcricao_api_url,
             headers={"Authorization": f"Bearer {settings.transcricao_api_chave}"},
             files={"file": (nome, audio, "audio/webm")},
-            data={"model": settings.transcricao_api_modelo, "language": "pt"},
+            data={
+                "model": settings.transcricao_api_modelo,
+                "language": "pt",
+                # O mesmo vocabulário do caminho local: as duas vias precisam
+                # devolver o mesmo jargão, senão a qualidade da observação
+                # dependeria de qual delas atendeu.
+                "prompt": CONTEXTO,
+            },
         )
     if resposta.status_code >= 400:
         raise FalhaNaTranscricao(f"API externa devolveu {resposta.status_code}")
@@ -66,7 +88,17 @@ def _via_whisper_local(audio: bytes) -> str:
     import io
 
     modelo = _carregar_modelo_local()
-    segmentos, _ = modelo.transcribe(io.BytesIO(audio), language="pt", vad_filter=True)
+    segmentos, _ = modelo.transcribe(
+        io.BytesIO(audio),
+        language="pt",
+        # Corta o silêncio antes e depois — o técnico costuma tocar o botão
+        # antes de falar e soltar depois.
+        vad_filter=True,
+        initial_prompt=CONTEXTO,
+        # Observação é frase solta, não continuação da anterior. Sem isto o
+        # modelo tenta emendar com o texto que veio antes e inventa.
+        condition_on_previous_text=False,
+    )
     texto = " ".join(s.text.strip() for s in segmentos).strip()
     if not texto:
         raise FalhaNaTranscricao("Whisper local não encontrou fala no áudio")

@@ -580,7 +580,20 @@ depois, no servidor.
   guardado e a pesagem fica `pendente` para reprocessar
   (`POST /pesagens/{id}/transcrever`) — falha de infraestrutura não pode
   penalizar o técnico.
-- **API externa primeiro, Whisper local como queda.** A externa é rápida e não
+- **Vocabulário de contexto.** O Whisper foi treinado em fala geral e não conhece
+o jargão do curral: sem ajuda, "carrapato" vira "cara-pato", "cocho" vira "coxo"
+e "brinco" vira "brinquedo". Uma frase de exemplo com os termos certos
+(`CONTEXTO`, em `app/transcricao.py`) inclina o modelo para o domínio — é barato,
+não exige treino e melhora justamente as palavras que importam. **As duas vias
+usam o mesmo vocabulário**, senão a qualidade da observação dependeria de qual
+delas atendeu.
+
+Medido com a mesma gravação: antes, "O bezefudo brinco mil e sem esta concaja
+pato no pescoço"; depois, "O bezerro do brinco, mil e cem, hasta com carrapato,
+no pescoço". Ao acrescentar termo novo à lista, mantenha-a curta — prompt longo
+demais faz o modelo repetir o próprio vocabulário no lugar do áudio.
+
+**API externa primeiro, Whisper local como queda.** A externa é rápida e não
   gasta CPU do servidor, mas depende de rede e de crédito; o local não depende
   de nada além da máquina, e é isso que faz dele um fallback de verdade. Sem
   `TRANSCRICAO_API_CHAVE`, vai direto para o local.
