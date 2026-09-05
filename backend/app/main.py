@@ -11,7 +11,10 @@ from app.api.metricas import router as metricas_router
 from app.api.pesagens import router as pesagens_router
 from app.api.setup import router as setup_router
 from app.core.config import settings
+from app.core.log import RegistroDeRequisicoes, configurar
 from app.api.usuarios import router as membros_router
+
+configurar()
 
 app = FastAPI(
     title="Engorda — API",
@@ -22,6 +25,10 @@ app = FastAPI(
 # Em desenvolvimento o frontend roda em outro host; em produção ele é servido do
 # mesmo domínio da API (rota /api), e aí `CORS_ORIGENS` deve listar só o domínio
 # real — porta aberta sem necessidade é porta aberta.
+# Antes do CORS: assim o identificador de rastreio existe mesmo em requisição
+# rejeitada por origem.
+app.add_middleware(RegistroDeRequisicoes)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.origens_permitidas,

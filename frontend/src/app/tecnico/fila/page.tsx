@@ -4,7 +4,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 
 import { Aviso, Botao, Cabecalho, Vazio } from "@/components/ui";
-import { db } from "@/lib/db";
+import { filaDaFazenda } from "@/lib/db";
+import { fazendaAtiva } from "@/lib/sessao";
 import { peso as formatarPeso } from "@/lib/formato";
 import { sincronizarTudo } from "@/lib/sync";
 
@@ -18,7 +19,13 @@ import { sincronizarTudo } from "@/lib/sync";
 export default function Fila() {
   const [sincronizando, setSincronizando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
-  const fila = useLiveQuery(() => db.fila.orderBy("coletado_em").reverse().toArray(), [], []);
+  const fila = useLiveQuery(async () => {
+    const fazenda = fazendaAtiva();
+    if (!fazenda) return [];
+    return (await filaDaFazenda(fazenda).toArray()).sort((a, b) =>
+      b.coletado_em.localeCompare(a.coletado_em),
+    );
+  }, [], []);
   const comErro = fila.filter((p) => p.ultimo_erro);
 
   async function sincronizarAgora() {

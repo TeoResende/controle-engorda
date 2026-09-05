@@ -59,9 +59,15 @@ class Animal(Desativavel, Base):
 
     fazenda: Mapped["Fazenda"] = relationship(back_populates="animais")
     lote: Mapped["Lote | None"] = relationship(back_populates="animais")
-    pesagens: Mapped[list["Pesagem"]] = relationship(back_populates="animal")
+    # `passive_deletes` deixa a cascata com o banco, que já a declara na chave
+    # estrangeira. Sem isso o SQLAlchemy tenta anular `animal_id` linha a linha
+    # antes de apagar o animal — e a coluna é NOT NULL, então a exclusão falhava
+    # com violação de restrição.
+    pesagens: Mapped[list["Pesagem"]] = relationship(
+        back_populates="animal", passive_deletes=True
+    )
     brincos: Mapped[list["AnimalBrincoHistorico"]] = relationship(
-        back_populates="animal", cascade="all, delete-orphan"
+        back_populates="animal", cascade="all, delete-orphan", passive_deletes=True
     )
 
 

@@ -1,4 +1,5 @@
-import { db, type AnimalLocal, type PesagemPendente } from "./db";
+import { animaisDaFazenda, filaDaFazenda, type AnimalLocal, type PesagemPendente } from "./db";
+import { fazendaAtiva } from "./sessao";
 import { hojeLocal } from "./formato";
 
 /**
@@ -64,11 +65,28 @@ export function ordenarPendentesPrimeiro(
   });
 }
 
-/** Fila e rebanho lidos juntos — as duas telas precisam dos dois. */
+/**
+ * Fila e rebanho da **fazenda ativa** — as duas telas precisam dos dois.
+ *
+ * O recorte por fazenda não é detalhe: o técnico troca de fazenda sem sinal, e
+ * misturar os rebanhos faria a conferência do dia contar animal que não é dali.
+ */
 export async function lerRebanhoEFila(): Promise<{
   animais: AnimalLocal[];
   fila: PesagemPendente[];
 }> {
-  const [animais, fila] = await Promise.all([db.animais.toArray(), db.fila.toArray()]);
+  const fazenda = fazendaAtiva();
+  if (!fazenda) return { animais: [], fila: [] };
+
+  const [animais, fila] = await Promise.all([
+    animaisDaFazenda(fazenda).toArray(),
+    filaDaFazenda(fazenda).toArray(),
+  ]);
   return { animais, fila };
+}
+
+/** Quantas pesagens da fazenda ativa esperam envio. */
+export async function contarFila(): Promise<number> {
+  const fazenda = fazendaAtiva();
+  return fazenda ? filaDaFazenda(fazenda).count() : 0;
 }

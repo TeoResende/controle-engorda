@@ -7,7 +7,7 @@ import { Aviso, Botao, Cabecalho, Campo } from "@/components/ui";
 import { api, ErroApi, SemConexao } from "@/lib/api";
 import { precisaConfiguracao } from "@/lib/instalacao";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
-import { baixarRebanho } from "@/lib/sync";
+import { baixarRebanho, baixarSessoes } from "@/lib/sync";
 
 type Fazenda = { fazenda_id: string; nome: string; papel: string };
 
@@ -37,12 +37,14 @@ export default function Login() {
         body: JSON.stringify({ email, senha, fazenda_id: fazenda_id ?? null }),
       });
       salvarSessao(sessao);
-      // Baixa o rebanho antes de soltar o técnico no curral: sem essa cópia, a
-      // coleta offline não sabe de que animal é o brinco.
+      // Baixa as sessões de todas as fazendas e o rebanho de cada uma, antes de
+      // soltar o técnico no curral: é o que permite trocar de fazenda e resolver
+      // o brinco sem sinal.
       try {
+        await baixarSessoes();
         await baixarRebanho();
       } catch {
-        // Rebanho é conveniência; a coleta por brinco funciona mesmo sem ele.
+        // Cópia local é conveniência; a coleta por brinco funciona mesmo sem ela.
       }
       router.replace("/tecnico");
     } catch (e) {

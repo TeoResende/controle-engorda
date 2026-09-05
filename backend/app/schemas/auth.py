@@ -32,6 +32,16 @@ class TokenResponse(BaseModel):
     admin_master: bool = False
 
 
+class SessaoDaFazenda(BaseModel):
+    """Uma sessão pronta para cada fazenda que o usuário atende."""
+
+    fazenda_id: uuid.UUID
+    nome: str
+    papel: Papel
+    access_token: str
+    refresh_token: str
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 

@@ -1,6 +1,6 @@
 import { apiAuth, ErroApi, SemConexao } from "./api";
 import { db, gravarMeta, type AnimalLocal, type PesagemPendente } from "./db";
-import { lerSessao } from "./sessao";
+import { lerSessao, lerSessoes, salvarSessoes } from "./sessao";
 
 /**
  * Motor de sincronização.
@@ -33,16 +33,20 @@ export type ResumoSync = {
 const LOTE_MAXIMO = 200;
 
 /** Sobe o áudio de uma pesagem já aceita. Devolve se conseguiu. */
-async function enviarAudio(pesagemId: string, audio: Blob): Promise<boolean> {
+async function enviarAudio(pesagemId: string, audio: Blob, fazendaId: string): Promise<boolean> {
   try {
     const formulario = new FormData();
     formulario.append("arquivo", audio, "observacao.webm");
-    await apiAuth(`/pesagens/${pesagemId}/audio`, {
-      method: "POST",
-      body: formulario,
-      // Sem Content-Type manual: o navegador põe o boundary do multipart.
-      headers: {},
-    });
+    await apiAuth(
+      `/pesagens/${pesagemId}/audio`,
+      {
+        method: "POST",
+        body: formulario,
+        // Sem Content-Type manual: o navegador põe o boundary do multipart.
+        headers: {},
+      },
+      fazendaId,
+    );
     return true;
   } catch {
     return false;
@@ -80,10 +84,18 @@ export async function sincronizar(): Promise<ResumoSync> {
   try {
     // Em blocos: um dia inteiro de curral sem sinal pode acumular centenas.
     for (;;) {
-      const bloco = await db.fila.orderBy("coletado_em").limit(LOTE_MAXIMO).toArray();
-      if (bloco.length === 0) break;
+      const pendentes = await db.fila.orderBy("coletado_em").limit(LOTE_MAXIMO).toArray();
+      if (pendentes.length === 0) break;
 
-      const resposta = await apiAuth<RespostaLote>("/pesagens/lote", {
+      // Cada pesagem vai para a fazenda dela, com o token dela. Um técnico que
+      // atende duas fazendas pode ter as duas na mesma fila, e mandar tudo com
+      // um token só faria metade ser recusada — ou, pior, aceita na errada.
+      const fazenda = pendentes[0].fazenda_id;
+      const bloco = pendentes.filter((p) => p.fazenda_id === fazenda);
+
+      const resposta = await apiAuth<RespostaLote>(
+        "/pesagens/lote",
+        {
         method: "POST",
         body: JSON.stringify(
           bloco.map((p) => ({
@@ -98,7 +110,9 @@ export async function sincronizar(): Promise<ResumoSync> {
             coletado_em: p.coletado_em,
           })),
         ),
-      });
+        },
+        fazenda,
+      );
 
       // A pesagem confirma primeiro; o áudio vai depois, um a um. Se o áudio
       // falhar, o registro fica na fila — mas a pesagem já está no servidor, e
@@ -119,7 +133,7 @@ export async function sincronizar(): Promise<ResumoSync> {
         } else {
           const item = bloco.find((p) => p.id === r.id);
           if (item?.audio && !item.audio_enviado) {
-            const subiu = await enviarAudio(r.id, item.audio);
+            const subiu = await enviarAudio(r.id, item.audio, fazenda);
             if (!subiu) {
               // Peso salvo, áudio pendente: fica na fila só pelo áudio.
               await db.fila.update(r.id, { tentativas: item.tentativas + 1 });
@@ -160,38 +174,79 @@ export async function sincronizar(): Promise<ResumoSync> {
  * Sem isso a tela de coleta não consegue nem dizer de que animal é o brinco
  * quando o celular está sem sinal.
  */
+/**
+ * Atualiza a cópia local do rebanho — de **todas** as fazendas do usuário.
+ *
+ * Sem isso a tela de coleta não consegue nem dizer de que animal é o brinco
+ * quando o celular está sem sinal. E baixar só a fazenda aberta faria a troca
+ * offline levar a um rebanho vazio, que é o mesmo que não poder trocar.
+ */
 export async function baixarRebanho(): Promise<number> {
   type Pagina = { itens: AnimalLocal[]; total: number };
-  const animais: AnimalLocal[] = [];
-  let deslocamento = 0;
+  let total = 0;
 
-  for (;;) {
-    const pagina = await apiAuth<Pagina>(
-      `/animais?limite=200&deslocamento=${deslocamento}`,
-    );
-    animais.push(...pagina.itens);
-    deslocamento += pagina.itens.length;
-    if (pagina.itens.length === 0 || animais.length >= pagina.total) break;
+  for (const sessao of lerSessoes()) {
+    const animais: AnimalLocal[] = [];
+    let deslocamento = 0;
+
+    for (;;) {
+      const pagina = await apiAuth<Pagina>(
+        `/animais?limite=200&deslocamento=${deslocamento}`,
+        {},
+        sessao.fazenda_id,
+      );
+      animais.push(...pagina.itens);
+      deslocamento += pagina.itens.length;
+      if (pagina.itens.length === 0 || animais.length >= pagina.total) break;
+    }
+
+    await db.transaction("rw", db.animais, async () => {
+      // Limpa só o rebanho desta fazenda: um `clear()` geral apagaria o das
+      // outras a cada sincronização.
+      await db.animais.where("fazenda_id").equals(sessao.fazenda_id).delete();
+      await db.animais.bulkPut(
+        animais.map((a) => ({
+          id: a.id,
+          fazenda_id: sessao.fazenda_id,
+          brinco: a.brinco,
+          nome: a.nome ?? null,
+          raca: a.raca ?? null,
+          porte: a.porte ?? null,
+          lote_id: a.lote_id ?? null,
+          status: a.status,
+          ultimo_peso: a.ultimo_peso ?? null,
+          ultima_pesagem: a.ultima_pesagem ?? null,
+        })),
+      );
+    });
+    total += animais.length;
   }
 
-  await db.transaction("rw", db.animais, async () => {
-    await db.animais.clear();
-    await db.animais.bulkPut(
-      animais.map((a) => ({
-        id: a.id,
-        brinco: a.brinco,
-        nome: a.nome ?? null,
-        raca: a.raca ?? null,
-        porte: a.porte ?? null,
-        lote_id: a.lote_id ?? null,
-        status: a.status,
-        ultimo_peso: a.ultimo_peso ?? null,
-        ultima_pesagem: a.ultima_pesagem ?? null,
-      })),
-    );
-  });
   await gravarMeta("rebanho_atualizado_em", new Date().toISOString());
-  return animais.length;
+  return total;
+}
+
+/**
+ * Baixa uma sessão para cada fazenda do usuário.
+ *
+ * É o que permite trocar de fazenda sem sinal: emitir token exige servidor, e
+ * no curral não há. Chamado no login e a cada sincronização, para vínculo novo
+ * aparecer sozinho.
+ */
+export async function baixarSessoes(): Promise<void> {
+  type SessaoDaFazenda = {
+    fazenda_id: string;
+    nome: string;
+    papel: "tecnico" | "cliente" | "admin";
+    access_token: string;
+    refresh_token: string;
+  };
+
+  const sessoes = await apiAuth<SessaoDaFazenda[]>("/auth/sessoes");
+  const atual = lerSessao();
+  salvarSessoes(
+    sessoes.map((s) => ({ ...s, admin_master: atual?.admin_master ?? false })),
+  );
 }
 
 /** Sobe a fila e atualiza o rebanho — o que se faz assim que há sinal. */
@@ -199,6 +254,9 @@ export async function sincronizarTudo(): Promise<ResumoSync> {
   const resumo = await sincronizar();
   if (typeof navigator === "undefined" || navigator.onLine) {
     try {
+      // As sessões primeiro: o rebanho é baixado por fazenda, e uma fazenda
+      // nova só aparece depois que a sessão dela existe.
+      await baixarSessoes();
       await baixarRebanho();
     } catch {
       // Rebanho desatualizado não impede coletar: é só cache de conveniência.

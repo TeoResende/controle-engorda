@@ -21,6 +21,7 @@ from app.schemas import (
     LoginRequest,
     RefreshRequest,
     TokenResponse,
+    SessaoDaFazenda,
     TrocarFazendaRequest,
     TrocarSenhaRequest,
 )
@@ -168,6 +169,46 @@ async def refresh(
         ) from exc
 
     return _par_de_tokens(usuario, fazenda_id, papel)
+
+
+@router.get("/sessoes", response_model=list[SessaoDaFazenda])
+async def sessoes(ctx: CtxDep, session: SessaoGlobalDep) -> list[SessaoDaFazenda]:
+    """Uma sessão para **cada** fazenda que o usuário atende.
+
+    Existe por causa do trabalho offline. Trocar de fazenda é trocar de token, e
+    emitir token exige servidor — o que significa que, no curral sem sinal, um
+    técnico que atende duas fazendas ficaria preso na que escolheu de manhã. O
+    app baixa todas as sessões enquanto há rede e passa a trocar sozinho.
+
+    Não amplia poder nenhum: são os mesmos vínculos que o login já daria, um de
+    cada vez. O que muda é *quando* eles são emitidos.
+    """
+    if ctx.master:
+        opcoes = [(f.id, f.nome, Papel.admin) for f in await _fazendas_do_master(session)]
+    else:
+        opcoes = [
+            (v.fazenda_id, v.fazenda.nome, v.papel)
+            for v in await _vinculos(session, ctx.usuario.id)
+        ]
+
+    return [
+        SessaoDaFazenda(
+            fazenda_id=fazenda_id,
+            nome=nome,
+            papel=papel,
+            **{
+                campo: criar_token(
+                    usuario_id=str(ctx.usuario.id),
+                    fazenda_id=str(fazenda_id),
+                    papel=papel.value,
+                    master=ctx.usuario.admin_master,
+                    tipo=tipo,
+                )
+                for campo, tipo in (("access_token", "access"), ("refresh_token", "refresh"))
+            },
+        )
+        for fazenda_id, nome, papel in opcoes
+    ]
 
 
 @router.post("/trocar-fazenda", response_model=TokenResponse)

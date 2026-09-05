@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 import { Casa, Brinco, Pessoa, Reticencias, SemSinal } from "@/components/icones";
 import { API_URL } from "@/lib/api";
-import { db } from "@/lib/db";
+import { contarFila } from "@/lib/pesados-hoje";
 import { marcaGuardada } from "@/lib/marca";
 import { sincronizar } from "@/lib/sync";
 
@@ -44,7 +44,7 @@ export function BarraSuperior({ fazenda }: { fazenda: string }) {
 
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between border-b border-borda bg-white px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2">
+      <Link href="/tecnico/mais" className="flex min-w-0 items-center gap-2">
         {temLogo ? (
           /* eslint-disable-next-line @next/next/no-img-element */
           <img
@@ -58,7 +58,7 @@ export function BarraSuperior({ fazenda }: { fazenda: string }) {
             <span className="truncate font-titulo font-extrabold text-verde">{fazenda}</span>
           </>
         )}
-      </div>
+      </Link>
       <EtiquetaConexao online={online} />
     </header>
   );
@@ -96,7 +96,7 @@ const ABAS = [
 /** Navegação inferior — alcançável com o polegar, de uma mão só. */
 export function NavegacaoInferior() {
   const caminho = usePathname();
-  const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
+  const pendentes = useLiveQuery(contarFila, [], 0);
 
   return (
     <nav

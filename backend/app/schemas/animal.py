@@ -62,3 +62,15 @@ class BrincoHistoricoResponse(BaseModel):
     brinco: str
     vinculado_em: datetime
     desvinculado_em: datetime | None
+
+
+class ExclusaoDefinitiva(BaseModel):
+    """Confirmação digitada para apagar um animal de vez.
+
+    Exigir o brinco não é burocracia: é a diferença entre um clique errado na
+    lista e uma decisão. Diferente de todo o resto do sistema, esta operação não
+    tem volta.
+    """
+
+    brinco: str
+    motivo: str | None = Field(default=None, max_length=300)

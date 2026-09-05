@@ -7,6 +7,7 @@ import { Brinco, Voltar } from "@/components/icones";
 import { AreaDeTexto, Aviso, Botao, Campo, Selecao } from "@/components/ui";
 import { apiAuth, ErroApi, SemConexao } from "@/lib/api";
 import { db } from "@/lib/db";
+import { fazendaAtiva } from "@/lib/sessao";
 
 /**
  * Tela 5 — Cadastro de animal.
@@ -75,6 +76,7 @@ function Conteudo() {
       // Entra na cópia local na hora: a coleta seguinte já encontra o animal.
       await db.animais.put({
         id: criado.id,
+        fazenda_id: fazendaAtiva() ?? "",
         brinco: criado.brinco,
         nome: criado.nome,
         raca: criado.raca,

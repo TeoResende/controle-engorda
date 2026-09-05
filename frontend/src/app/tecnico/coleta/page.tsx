@@ -9,6 +9,7 @@ import { Microfone, Voltar } from "@/components/icones";
 import { GravadorDeVoz, LIMITE_SEGUNDOS, suporteGravacao } from "@/lib/audio";
 import { AreaDeTexto, Aviso, Botao, Campo, Chip } from "@/components/ui";
 import { animalPorBrinco, type AnimalLocal } from "@/lib/db";
+import { fazendaAtiva } from "@/lib/sessao";
 import { data as formatarData, hojeLocal, peso as formatarPeso } from "@/lib/formato";
 import { enfileirar, sincronizar } from "@/lib/sync";
 import { novoUuid } from "@/lib/uuid";
@@ -25,6 +26,7 @@ function Conteudo() {
   const router = useRouter();
   const parametros = useSearchParams();
   const brinco = (parametros.get("brinco") ?? "").trim();
+  const fazenda = fazendaAtiva() ?? "";
 
   const [animal, setAnimal] = useState<AnimalLocal | null | undefined>(undefined);
   const [online, setOnline] = useState(true);
@@ -53,8 +55,10 @@ function Conteudo() {
       setAnimal(null);
       return;
     }
-    animalPorBrinco(brinco).then((encontrado) => setAnimal(encontrado ?? null));
-  }, [brinco]);
+    // O par fazenda+brinco: o mesmo número pode existir em duas fazendas, e
+    // resolver o da errada mandaria a pesagem para o animal errado.
+    animalPorBrinco(brinco, fazenda).then((encontrado) => setAnimal(encontrado ?? null));
+  }, [brinco, fazenda]);
 
   async function alternarGravacao() {
     if (!gravador) return;
@@ -96,6 +100,9 @@ function Conteudo() {
       // Não usa crypto.randomUUID direto — ele não existe fora de contexto
       // seguro, e o app roda em http na rede local.
       id: novoUuid(),
+      // Carimba a fazenda: a fila pode ter pesagens de duas, e cada uma é
+      // enviada com o token da sua.
+      fazenda_id: fazenda,
       animal_id: animal?.id ?? null,
       brinco,
       data: dataPesagem,

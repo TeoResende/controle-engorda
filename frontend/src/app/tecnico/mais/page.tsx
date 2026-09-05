@@ -7,18 +7,23 @@ import { useEffect, useState } from "react";
 
 import { Brinco, Seta, Sincronizar } from "@/components/icones";
 import { DiagnosticoOffline } from "@/components/diagnostico-offline";
+import { TrocarFazenda } from "@/components/trocar-fazenda";
 import { TrocarSenha } from "@/components/trocar-senha";
 import { Cabecalho, Cartao } from "@/components/ui";
-import { db, lerMeta } from "@/lib/db";
-import { limparSessao } from "@/lib/sessao";
+import { animaisDaFazenda, lerMeta } from "@/lib/db";
+import { contarFila } from "@/lib/pesados-hoje";
+import { fazendaAtiva, limparSessao } from "@/lib/sessao";
 import { identidadeGuardada, ROTULO_PAPEL, type Identidade } from "@/lib/sessao-usuario";
 
 export default function MaisOpcoes() {
   const router = useRouter();
   const [identidade, setIdentidade] = useState<Identidade | null>(null);
   const [ultima, setUltima] = useState<string | null>(null);
-  const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
-  const rebanho = useLiveQuery(() => db.animais.count(), [], 0);
+  const pendentes = useLiveQuery(contarFila, [], 0);
+  const rebanho = useLiveQuery(async () => {
+    const fazenda = fazendaAtiva();
+    return fazenda ? animaisDaFazenda(fazenda).count() : 0;
+  }, [], 0);
 
   useEffect(() => {
     void identidadeGuardada().then((i) => i && setIdentidade(i));
@@ -69,6 +74,8 @@ export default function MaisOpcoes() {
           </Link>
         </li>
       </ul>
+
+      <TrocarFazenda />
 
       <TrocarSenha />
 

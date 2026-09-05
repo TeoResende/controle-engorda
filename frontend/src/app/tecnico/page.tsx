@@ -6,8 +6,8 @@ import { useEffect, useState } from "react";
 
 import { Brinco, Mais, Sincronizar } from "@/components/icones";
 import { apiAuth } from "@/lib/api";
-import { db, gravarMeta, lerMeta } from "@/lib/db";
-import { contarODia, lerRebanhoEFila } from "@/lib/pesados-hoje";
+import { gravarMeta, lerMeta } from "@/lib/db";
+import { contarFila, contarODia, lerRebanhoEFila } from "@/lib/pesados-hoje";
 import { identidadeGuardada, ROTULO_PAPEL, type Identidade } from "@/lib/sessao-usuario";
 
 type ResumoDoDia = { pesadas_hoje: number; lote_ativo: string | null };
@@ -16,7 +16,7 @@ type ResumoDoDia = { pesadas_hoje: number; lote_ativo: string | null };
 export default function Inicio() {
   const [identidade, setIdentidade] = useState<Identidade | null>(null);
   const [hoje, setHoje] = useState<ResumoDoDia | null>(null);
-  const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
+  const pendentes = useLiveQuery(contarFila, [], 0);
 
   // Contagem do dia calculada no aparelho: funciona sem sinal e é a mesma que a
   // tela de animais mostra — dois números diferentes para a mesma pergunta

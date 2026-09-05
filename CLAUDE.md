@@ -956,9 +956,89 @@ docker compose exec worker python -m app.transcricao
 enfileira o job. O `Dockerfile` recebe `PERFIL` (`api`, `worker` ou `dev`), e o
 compose escolhe: `PERFIL_BACKEND=api` no `.env` de produção.
 
+## 8.12. Registro estruturado
+
+Uma linha JSON por evento, no stdout — que é onde o Docker recolhe. JSON e não
+texto corrido porque quem lê log de produção lê com filtro (`jq`, Loki), e é a
+máquina que vai achar a agulha às três da manhã.
+
+Cada requisição carrega um **identificador de rastreio** (`X-Request-ID`, aceito
+do proxy quando vem), e ele aparece em toda linha daquele pedido — inclusive na
+pilha de uma exceção. O 500 devolve esse código ao usuário: "informe o código ao
+suporte" transforma um relato vago em busca de uma linha.
+
+Assim que a autenticação resolve, **usuário e fazenda entram no contexto** e
+acompanham as linhas seguintes. É o que permite responder "o que aconteceu com o
+técnico Carlos ontem à tarde" sem cruzar tabelas.
+
+`registrar_acao()` marca o que precisa ser explicado depois — exclusão
+definitiva, troca de papel, redefinição de senha. **É a trilha de auditoria
+enquanto não existir tabela própria**; o soft delete guarda *quando*, nunca
+*quem*.
+
+Segredo nenhum entra no log, por construção: registra-se quem, o quê, onde e
+quanto tempo levou. O access log do uvicorn foi silenciado — diria o mesmo com
+menos, e dobraria o volume.
+
+## 8.13. Exclusão definitiva
+
+`POST /animais/{id}/excluir` apaga o animal e todo o histórico. **É a única
+operação sem volta do sistema.**
+
+Existe para o brinco reciclado e o cadastro errado: uma tag reaproveitada num
+animal cadastrado por engano deixa dois registros disputando a mesma identidade,
+e o índice parcial impede o novo de existir enquanto o velho estiver ativo.
+Desativar resolve quase tudo e continua sendo o caminho normal.
+
+Por isso: **admin apenas**, exige o **brinco digitado** como confirmação — a
+diferença entre um clique errado na lista e uma decisão — e fica registrada no
+log com quem pediu, quantas pesagens foram junto e por quê.
+
+Detalhe que custou um 500: sem `passive_deletes=True` na relação, o SQLAlchemy
+tenta anular `animal_id` linha a linha antes de apagar o animal, e a coluna é
+`NOT NULL`. A cascata é do banco; a relação precisa saber disso.
+
+## 8.14. Trocar de fazenda sem internet
+
+Trocar de fazenda é trocar de token, e emitir token exige servidor. No curral,
+onde a troca acontece, não há — então um técnico que atende duas fazendas
+ficaria preso na que escolheu de manhã.
+
+`GET /auth/sessoes` devolve **uma sessão pronta para cada fazenda** do usuário. O
+app baixa todas enquanto há rede e passa a trocar sozinho, escolhendo entre as
+que já estão no aparelho. Não amplia poder: são os mesmos vínculos que o login
+daria, um de cada vez — o que muda é *quando* são emitidos.
+
+Isso obrigou a **separar os dados locais por fazenda** (Dexie v2, com migração
+do que já estava no aparelho):
+
+- `animalPorBrinco` busca pelo par `[fazenda_id+brinco]` — o mesmo número pode
+  existir em duas fazendas, e resolver o da errada mandaria a pesagem para o
+  animal errado;
+- cada item da fila carrega a fazenda e **sobe com o token dela**, não com o da
+  que estiver aberta na tela;
+- `baixarRebanho` baixa o rebanho de todas as fazendas e limpa só o da fazenda
+  que está atualizando — um `clear()` geral apagaria o das outras.
+
+O seletor fica em *Mais*, e a barra superior leva até ele. Com uma fazenda só,
+não aparece.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
+
+## 9.1. Roadmap — decidido, não construído
+
+Levantado na avaliação técnica e priorizado com o cliente:
+
+| | Por quê |
+|---|---|
+| **Projeção de abate** | Nenhuma tela responde "quando este animal atinge 480 kg?", que é a pergunta de negócio do confinamento. Os dados já existem (GMD e peso atual); falta a conta e a tela. **Maior lacuna funcional.** |
+| **Proteção contra força bruta no login** | Não há limite de tentativas. Com a API exposta, é risco real antes de produção. |
+| **GPS da pesagem** | As colunas existem desde o M1 e o app envia `null` sempre. Responderia "onde este animal foi pesado?". |
+| Validação de peso contra o histórico | Digitar 55 no lugar de 550 é aceito. O app já mostra o último peso; falta avisar quando a diferença é implausível. |
+| `/health` cobrir o MinIO | Se o armazenamento cair, o áudio falha e o health continua verde. |
+| Tabela de auditoria | Hoje a trilha é o log estruturado. Uma tabela permitiria consultar "quem desativou este animal" pela própria interface. |
 
 ## 10. Estado atual da construção
 
@@ -968,7 +1048,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M3** — CRUD de fazendas, membros, lotes e animais; admin master, primeiro acesso e soft delete (67 testes)
 - [x] **M4** — pesagem com idempotência pelo UUID do cliente (88 testes)
 - [x] **M5** — PWA offline do técnico (Service Worker, IndexedDB, motor de sync)
-- [x] **M6** — leitura e gravação de tag NFC *(falta validar em celular real)*
+- [x] **M6** — leitura e gravação de tag NTAG213 **validado em Android real**
 - [x] **M7** — gravação, upload e transcrição de áudio (104 testes)
 - [x] **M8** — dashboard do cliente: KPIs, curva, lotes e alertas (116 testes)
 - [ ] M9 — deploy VPS

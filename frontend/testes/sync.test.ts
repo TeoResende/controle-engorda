@@ -25,14 +25,19 @@ vi.mock("@/lib/api", () => ({
   SemConexao: class SemConexao extends Error {},
 }));
 
+const SESSAO = {
+  access_token: "t",
+  refresh_token: "r",
+  fazenda_id: "f",
+  papel: "tecnico" as const,
+  admin_master: false,
+};
+
 vi.mock("@/lib/sessao", () => ({
-  lerSessao: () => ({
-    access_token: "t",
-    refresh_token: "r",
-    fazenda_id: "f",
-    papel: "tecnico",
-    admin_master: false,
-  }),
+  lerSessao: () => SESSAO,
+  lerSessoes: () => [SESSAO],
+  salvarSessoes: vi.fn(),
+  fazendaAtiva: () => "f",
 }));
 
 const { sincronizar, enfileirar } = await import("@/lib/sync");
@@ -40,6 +45,7 @@ const { sincronizar, enfileirar } = await import("@/lib/sync");
 function pesagem(id: string, brinco = "1001"): PesagemPendente {
   return {
     id,
+    fazenda_id: "f",
     animal_id: null,
     brinco,
     data: "2026-09-04",

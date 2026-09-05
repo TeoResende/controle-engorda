@@ -1,4 +1,4 @@
-import { lerSessao, limparSessao, salvarSessao, type Sessao } from "./sessao";
+import { lerSessao, lerSessoes, limparSessao, salvarSessao, type Sessao } from "./sessao";
 
 // Precisa ser um endereço que o NAVEGADOR alcance — nunca "backend:8000", que
 // só existe dentro da rede do Docker.
@@ -105,7 +105,9 @@ async function renovar(sessao: Sessao): Promise<Sessao | null> {
       method: "POST",
       body: JSON.stringify({ refresh_token: sessao.refresh_token }),
     });
-    salvarSessao(nova);
+    // Preserva o nome da fazenda, que o /auth/refresh não devolve — sem ele o
+    // seletor de fazenda ficaria com um item sem rótulo.
+    salvarSessao({ ...nova, nome: sessao.nome });
     return nova;
   } catch {
     return null;
@@ -118,8 +120,16 @@ async function renovar(sessao: Sessao): Promise<Sessao | null> {
  * O access token dura 12h justamente porque o técnico passa o dia offline; a
  * renovação só é possível — e só é necessária — quando já há internet de novo.
  */
-export async function apiAuth<T>(caminho: string, opcoes: RequestInit = {}): Promise<T> {
-  let sessao = lerSessao();
+export async function apiAuth<T>(
+  caminho: string,
+  opcoes: RequestInit = {},
+  /** Fala em nome de outra fazenda — a fila envia cada pesagem com o token da
+   *  fazenda dela, e não com o da que está aberta na tela. */
+  fazendaId?: string,
+): Promise<T> {
+  let sessao = fazendaId
+    ? (lerSessoes().find((s) => s.fazenda_id === fazendaId) ?? null)
+    : lerSessao();
   if (!sessao) throw new ErroApi(401, "Sessão expirada");
 
   // FormData define o próprio Content-Type, com o boundary do multipart —

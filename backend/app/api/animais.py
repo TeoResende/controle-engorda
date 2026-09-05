@@ -14,13 +14,15 @@ from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.deps import EscritaDep, SessaoDep
+from app.core.deps import AdminDep, EscritaDep, SessaoDep
+from app.core.log import registrar_acao
 from app.models import Animal, AnimalBrincoHistorico, Lote, Pesagem, StatusAnimal
 from app.schemas import (
     AnimalAtualizar,
     AnimalCriar,
     AnimalResponse,
     BrincoHistoricoResponse,
+    ExclusaoDefinitiva,
     Pagina,
 )
 
@@ -222,6 +224,51 @@ async def desativar(animal_id: uuid.UUID, sessao: SessaoDep, ctx: EscritaDep) ->
     if animal.desativado_em is None:
         animal.desativado_em = datetime.now(timezone.utc)
         await sessao.commit()
+
+
+@router.post("/{animal_id}/excluir", status_code=status.HTTP_204_NO_CONTENT)
+async def excluir_definitivamente(
+    animal_id: uuid.UUID,
+    dados: ExclusaoDefinitiva,
+    sessao: SessaoDep,
+    ctx: AdminDep,
+) -> None:
+    """Apaga o animal e todo o histórico dele. **Não tem volta.**
+
+    Existe para o caso do brinco reciclado e do cadastro errado: uma tag
+    reaproveitada num animal cadastrado por engano deixaria dois registros
+    disputando a mesma identidade, e o índice parcial impediria o novo de
+    existir enquanto o velho estivesse ativo.
+
+    Desativar resolve quase tudo e é o caminho normal — por isso esta rota é de
+    **admin**, exige o brinco digitado como confirmação e fica registrada no
+    log com quem pediu, quantas pesagens foram junto e por quê. Enquanto não
+    houver tabela de auditoria, o log é a trilha.
+    """
+    animal = await _obter(sessao, animal_id)
+
+    if dados.brinco.strip() != animal.brinco:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Digite o brinco {animal.brinco} para confirmar a exclusão",
+        )
+
+    pesagens = await sessao.session.scalar(
+        select(func.count()).select_from(Pesagem).where(Pesagem.animal_id == animal_id)
+    )
+
+    registrar_acao(
+        "animal excluído definitivamente",
+        animal_id=str(animal_id),
+        brinco=animal.brinco,
+        pesagens_apagadas=pesagens or 0,
+        motivo=dados.motivo,
+        por=str(ctx.usuario.id),
+    )
+
+    # As pesagens e o histórico de brinco vão junto, por cascata.
+    await sessao.session.delete(animal)
+    await sessao.commit()
 
 
 @router.post("/{animal_id}/reativar", response_model=AnimalResponse)

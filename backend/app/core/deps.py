@@ -15,6 +15,7 @@ from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import fixar_tenant, get_session, liberar_tenant
+from app.core.log import fazenda_atual_log, usuario_atual_log
 from app.core.security import TokenInvalido, decodificar_token
 from app.models import Papel, Usuario
 
@@ -119,6 +120,12 @@ async def usuario_atual(
     )
     if usuario is None:
         raise NAO_AUTENTICADO
+
+    # Quem e de qual fazenda passam a acompanhar toda linha de log desta
+    # requisição — é o que permite responder "o que aconteceu com o técnico
+    # Carlos ontem à tarde" sem cruzar tabelas.
+    usuario_atual_log.set(str(usuario.id))
+    fazenda_atual_log.set(str(fazenda_id))
 
     return Contexto(usuario=usuario, fazenda_id=fazenda_id, papel=papel)
 

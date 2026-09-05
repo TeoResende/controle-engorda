@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.db import SessionLocal, liberar_tenant
+from app.core.log import configurar
 from app.core import armazenamento
 from app.models import Pesagem, StatusTranscricao
 from app.transcricao import transcrever
@@ -73,6 +74,7 @@ async def transcrever_audio(ctx: dict, pesagem_id: str) -> str:
 
 
 async def startup(ctx: dict) -> None:
+    configurar()
     ctx["sessao_factory"] = SessionLocal
     logger.info("worker arq iniciado — redis em %s", settings.redis_url)
 

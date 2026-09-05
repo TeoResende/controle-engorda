@@ -4,7 +4,8 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect, useState } from "react";
 
 import { apiAuth } from "@/lib/api";
-import { db } from "@/lib/db";
+import { filaDaFazenda } from "@/lib/db";
+import { fazendaAtiva } from "@/lib/sessao";
 import { data as formatarData, peso as formatarPeso } from "@/lib/formato";
 
 /**
@@ -30,7 +31,14 @@ export function UltimasPesagens({
   const [offline, setOffline] = useState(false);
 
   const naFila = useLiveQuery(
-    () => db.fila.where("brinco").equals(brinco).reverse().sortBy("coletado_em"),
+    async () => {
+      const fazenda = fazendaAtiva();
+      if (!fazenda) return [];
+      const todas = await filaDaFazenda(fazenda).toArray();
+      return todas
+        .filter((p) => p.brinco === brinco)
+        .sort((a, b) => b.coletado_em.localeCompare(a.coletado_em));
+    },
     [brinco],
     [],
   );
