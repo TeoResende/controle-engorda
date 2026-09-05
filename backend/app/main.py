@@ -6,6 +6,7 @@ from app.api.auth import router as auth_router
 from app.api.fazendas import router as fazendas_router
 from app.api.health import router as health_router
 from app.api.lotes import router as lotes_router
+from app.api.metricas import router as metricas_router
 from app.api.pesagens import router as pesagens_router
 from app.api.setup import router as setup_router
 from app.api.usuarios import router as membros_router
@@ -34,6 +35,7 @@ app.include_router(membros_router)
 app.include_router(lotes_router)
 app.include_router(animais_router)
 app.include_router(pesagens_router)
+app.include_router(metricas_router)
 
 
 @app.get("/")

@@ -401,6 +401,51 @@ docker compose exec worker python -m app.transcricao
 Medido nesta máquina: modelo `small` em CPU leva ~90s no primeiro job (inclui o
 download) e poucos segundos depois disso, com o modelo em memória.
 
+## 8.5. Dashboard do cliente (M8)
+
+`GET /metricas/visao-geral` e `GET /metricas/animal/{id}` alimentam as telas 6 e 7.
+
+### GMD é calculado, nunca guardado
+
+Ganho médio diário = (último peso − primeiro peso) ÷ dias entre eles, por SQL e
+sob demanda. Coluna com valor derivado viraria fonte de divergência no instante
+em que alguém corrigisse ou desativasse uma pesagem — e recalcular é barato
+nesta escala. Por isso também **não existe job de recálculo** no worker: seria
+complexidade sem ganho.
+
+- **Animal com uma pesagem só tem GMD nulo, não zero.** Zero seria lido como
+  "não está ganhando peso", que é uma afirmação diferente de "ainda não dá para
+  saber".
+- **Desempate explícito** por `data`, `coletado_em`, `id`. Duas pesagens no mesmo
+  dia é situação normal (repesagem, correção, duas passagens pelo curral) e sem
+  ordem definida o Postgres escolhe uma ao acaso — o mesmo dashboard mostraria
+  números diferentes a cada carga. Isso apareceu na conferência contra o SQL
+  bruto: 294,02 kg contra 297,94 kg.
+- **Pesagem ou animal desativado sai de tudo** — média, GMD e alertas.
+
+### Alertas
+
+| Tipo | Quando | Ordem |
+|---|---|---|
+| `perda_de_peso` | ganho total negativo | 1º |
+| `gmd_baixo` | GMD < 0,500 kg/dia | 2º |
+| `sem_pesagem` | mais de 45 dias sem pesar | 3º |
+
+Emagrecer vem antes de ganhar pouco porque é mais grave. Os limites estão em
+`app/servicos/metricas.py` (`GMD_MINIMO`, `DIAS_SEM_PESAGEM`) — quando virarem
+ajuste por fazenda, é ali que saem para o banco.
+
+### Frontend
+
+`/dashboard` (visão geral) e `/dashboard/animal/[id]` (detalhe), mais
+`/dashboard/login`. **Sem Service Worker de propósito**: dado analítico precisa
+estar atualizado, e cache agressivo faria o pecuarista decidir com número velho
+— o oposto do que o app do técnico precisa.
+
+Os gráficos são SVG escritos à mão (`components/grafico.tsx`): uma biblioteca
+custaria ~100 KB de bundle para desenhar duas linhas, e o dashboard precisa abrir
+rápido em conexão de fazenda.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -415,7 +460,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M5** — PWA offline do técnico (Service Worker, IndexedDB, motor de sync)
 - [x] **M6** — leitura e gravação de tag NFC *(falta validar em celular real)*
 - [x] **M7** — gravação, upload e transcrição de áudio (104 testes)
-- [ ] M8 — dashboard
+- [x] **M8** — dashboard do cliente: KPIs, curva, lotes e alertas (116 testes)
 - [ ] M9 — deploy VPS
 - [ ] M10 — hardening
 
