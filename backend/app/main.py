@@ -10,16 +10,32 @@ from app.api.lotes import router as lotes_router
 from app.api.metricas import router as metricas_router
 from app.api.pesagens import router as pesagens_router
 from app.api.setup import router as setup_router
-from app.core.config import settings
+import logging
+
+from app.core.config import ConfiguracaoInsegura, conferir_para_producao, settings
 from app.core.log import RegistroDeRequisicoes, configurar
 from app.api.usuarios import router as membros_router
 
 configurar()
 
+# Recusa subir em produção com segredo de exemplo. Falhar aqui é barulhento e
+# custa dois minutos; deixar passar é silencioso e custa os dados.
+if settings.em_producao and (problemas := conferir_para_producao()):
+    for problema in problemas:
+        logging.getLogger("api").critical("configuração insegura", extra={"problema": problema})
+    raise ConfiguracaoInsegura(
+        "Configuração insegura para produção:\n  - " + "\n  - ".join(problemas)
+    )
+
 app = FastAPI(
     title="Engorda — API",
     description="Acompanhamento de peso de bezerros em engorda.",
     version="0.1.0",
+    # Documentação interativa só fora de produção: ela não é uma falha de
+    # segurança, mas entrega o mapa completo da API a quem estiver sondando.
+    docs_url=None if settings.em_producao else "/docs",
+    redoc_url=None,
+    openapi_url=None if settings.em_producao else "/openapi.json",
 )
 
 # Em desenvolvimento o frontend roda em outro host; em produção ele é servido do
@@ -49,6 +65,11 @@ async def pronto(requisicao: Request) -> dict:
     difícil de diagnosticar às cegas — aqui dá para ver se o proxy está mesmo
     repassando o esquema.
     """
+    if settings.em_producao:
+        # Em produção devolve só o essencial para conferir o proxy: os demais
+        # campos ecoam cabeçalhos e o IP de quem chamou.
+        return {"esquema": requisicao.url.scheme}
+
     return {
         "esquema": requisicao.url.scheme,
         "host": requisicao.headers.get("host"),

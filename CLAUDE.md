@@ -1027,6 +1027,43 @@ não aparece.
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
 
+## 8.15. Superfície de risco da API
+
+Levantado medindo, não supondo. O que está **mitigado** e o que continua aberto:
+
+### Resolvido: segredo de exemplo em produção
+
+**Era o risco número um.** A `SECRET_KEY` do `.env.example` está publicada no
+GitHub; com ela, qualquer pessoa que leia o repositório assina um token de admin
+master válido — e nada no sistema daria sinal. Subir esquecendo de trocá-la era
+uma falha **silenciosa e total**.
+
+Com `AMBIENTE=producao`, a aplicação **recusa iniciar** enquanto `SECRET_KEY`,
+`POSTGRES_PASSWORD`, `POSTGRES_APP_PASSWORD` ou `MINIO_ROOT_PASSWORD` forem os
+valores de exemplo, ou a chave tiver menos de 32 caracteres, ou o CORS aceitar
+qualquer origem. O overlay de produção já define esse ambiente.
+
+Também em produção: `/docs` e `/openapi.json` somem, e `/pronto` devolve só o
+esquema, sem ecoar cabeçalhos nem IP.
+
+### Abertos, por ordem de gravidade
+
+| Risco | Situação |
+|---|---|
+| **Força bruta no login** | 30 tentativas em 5 s, todas processadas. Cada uma custa um bcrypt, então serve para adivinhar senha **e** para saturar CPU. No roadmap. |
+| **Painel do Traefik e console do MinIO alcançáveis** | `--api.insecure=true` na 8090 e a rota `minio.*`. Numa VPS, **não podem ser expostos**: um lista toda a topologia, o outro administra o armazenamento. Restrinja no proxy da frente ou remova as rotas. |
+| **Token sem revogação** | Access de 12 h, refresh de 30 dias. Celular perdido = 12 h de acesso no mínimo; quem copiar o armazenamento tem 30 dias. Sair do app só limpa o aparelho. Fechar exige denylist em Redis. |
+| **Sem teto de corpo de requisição** | 500 KB no login foram aceitos. O proxy da frente costuma limitar; confirme que o seu limita. |
+| **Política de senha fraca** | Mínimo de 8 caracteres, sem checagem contra senhas comuns. |
+
+### Não são riscos
+
+- **SQL**: tudo parametrizado; nenhuma interpolação fora das migrations.
+- **CORS aberto**: o token vive no `localStorage`, não em cookie — não há CSRF a
+  explorar. Ainda assim, apertar em produção é hábito barato.
+- **Repositório público**: expõe a arquitetura, não credencial. A auditoria antes
+  da publicação removeu a única chave privada do histórico.
+
 ## 9.1. Roadmap — decidido, não construído
 
 Levantado na avaliação técnica e priorizado com o cliente:

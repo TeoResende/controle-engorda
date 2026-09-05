@@ -27,6 +27,10 @@ services:
       - "443:443"
 
   backend:
+    environment:
+      # Liga as verificações de subida: a aplicação recusa começar com segredo
+      # de exemplo, e a documentação interativa some.
+      AMBIENTE: producao
     # Sem as ferramentas de teste nem as bibliotecas de transcrição.
     build:
       context: ./backend

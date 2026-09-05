@@ -41,6 +41,14 @@ class Settings(BaseSettings):
 
     log_level: str = "info"
 
+    # "producao" liga as verificações de segurança da subida e esconde o que só
+    # serve para desenvolver (documentação interativa, diagnóstico de proxy).
+    ambiente: str = "desenvolvimento"
+
+    @property
+    def em_producao(self) -> bool:
+        return self.ambiente.lower().startswith("produ")
+
     # --- Atrás de proxy ---
     # Quando o TLS termina fora da aplicação — Traefik, Nginx Proxy Manager,
     # Cloudflare —, o backend só sabe que a requisição chegou por HTTPS pelo
@@ -107,3 +115,46 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+
+
+# Valores que vêm no `.env.example` — e que, portanto, estão publicados no
+# repositório. Usá-los em produção equivale a não ter segredo nenhum.
+PADROES_PUBLICOS = {
+    "secret_key": "troque-esta-chave-em-producao",
+    "postgres_password": "engorda_dev_senha",
+    "postgres_app_password": "engorda_app_dev",
+    "minio_root_password": "minioadmin_dev",
+}
+
+
+class ConfiguracaoInsegura(RuntimeError):
+    """Configuração que não pode ir para produção."""
+
+
+def conferir_para_producao(config: Settings | None = None) -> list[str]:
+    """Lista os problemas de configuração que impedem subir em produção.
+
+    Existe porque o pior modo de falha aqui é **silencioso**: com a
+    `SECRET_KEY` do repositório, qualquer pessoa que leia o projeto assina um
+    token de admin master válido, e nada no sistema dá sinal disso. Uma recusa
+    barulhenta na subida custa dois minutos; descobrir depois custa os dados.
+    """
+    config = config or settings
+    problemas: list[str] = []
+
+    for campo, publico in PADROES_PUBLICOS.items():
+        if getattr(config, campo) == publico:
+            problemas.append(
+                f"{campo.upper()} ainda é o valor de exemplo, que está publicado no repositório"
+            )
+
+    if len(config.secret_key) < 32:
+        problemas.append("SECRET_KEY tem menos de 32 caracteres")
+
+    if config.cors_origens.strip() == "*":
+        problemas.append(
+            "CORS_ORIGENS aceita qualquer origem; em produção liste o domínio real"
+        )
+
+    return problemas
