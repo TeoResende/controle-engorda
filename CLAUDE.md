@@ -1076,6 +1076,7 @@ Levantado na avaliação técnica e priorizado com o cliente:
 | Validação de peso contra o histórico | Digitar 55 no lugar de 550 é aceito. O app já mostra o último peso; falta avisar quando a diferença é implausível. |
 | `/health` cobrir o MinIO | Se o armazenamento cair, o áudio falha e o health continua verde. |
 | Tabela de auditoria | Hoje a trilha é o log estruturado. Uma tabela permitiria consultar "quem desativou este animal" pela própria interface. |
+| Imagem enxuta do frontend | 1,66 GB porque carrega o `node_modules` inteiro. `output: "standalone"` servido por `node .next/standalone/server.js` resolveria — foi removido do `next.config.mjs` por ora, já que o `next start` o ignora e o Next avisa na subida. |
 
 ## 10. Estado atual da construção
 
@@ -1090,6 +1091,16 @@ Levantado na avaliação técnica e priorizado com o cliente:
 - [x] **M8** — dashboard do cliente: KPIs, curva, lotes e alertas (116 testes)
 - [ ] M9 — deploy VPS
 - [x] **M10** — Row-Level Security, papel restrito e backup verificado (159 testes)
+
+### O distintivo "Static Route"
+
+É o indicador de desenvolvimento do Next, não um componente do produto: mostra se
+a rota é estática ou dinâmica e **nunca aparece em produção**. Está desligado em
+`next.config.mjs` (`devIndicators`), porque num app operado com uma mão só ele
+cobre justamente o canto das abas — e quem testa o confunde com parte da tela.
+
+Se ele reaparecer depois de mudar para produção, é cache: o Service Worker
+guardou a versão de desenvolvimento. Limpe os dados do site e recarregue.
 
 ### Verificar o frontend sem quebrar o servidor de desenvolvimento
 
