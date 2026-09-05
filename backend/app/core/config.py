@@ -80,6 +80,19 @@ class Settings(BaseSettings):
     # Modelo local do faster-whisper. "small" equilibra qualidade e CPU de VPS;
     # "tiny" cabe em máquina apertada, "medium" pede bem mais memória.
     whisper_modelo_local: str = "small"
+    # Manter o modelo na memória entre transcrições.
+    #
+    # Vazio decide sozinho: se há API externa configurada, o Whisper é plano B e
+    # o modelo é descarregado depois de usar — senão uma única falha da API
+    # deixaria ~480 MB presos até reiniciar o worker. Sem API externa, o local é
+    # o caminho normal e recarregar a cada áudio seria desperdício.
+    whisper_manter_carregado: str = ""
+
+    @property
+    def manter_whisper_na_memoria(self) -> bool:
+        if self.whisper_manter_carregado:
+            return self.whisper_manter_carregado.lower() in ("1", "true", "sim")
+        return not bool(self.transcricao_api_chave)
     # Teto de duração/tamanho do áudio de observação.
     audio_max_segundos: int = 60
     audio_max_bytes: int = 2 * 1024 * 1024

@@ -608,6 +608,35 @@ demais faz o modelo repetir o próprio vocabulário no lugar do áudio.
   isolamento por fazenda não valeria para os arquivos. A chave é prefixada por
   `fazendas/{id}/`, o que também facilita cota e expurgo por tenant.
 
+### Memória: quando manter o modelo carregado
+
+Medido no worker: **71 MB sem o modelo, 549 MB com ele** — o `small` custa ~480
+MB e fica carregado pela vida do processo.
+
+A decisão é automática (`manter_whisper_na_memoria`):
+
+- **Sem API externa**, o Whisper é o caminho normal e o modelo **fica** — recarregar
+  a cada áudio seria desperdício.
+- **Com API externa**, ele é plano B e é **descarregado** depois de usar. Sem isso,
+  uma única falha da API — crédito vencido, rede instável por um minuto —
+  prenderia 480 MB até alguém reiniciar o worker.
+
+`WHISPER_MANTER_CARREGADO=sim|0` força qualquer um dos dois.
+
+**`gc.collect()` sozinho não devolve a memória.** Ele libera os objetos, mas o
+alocador do glibc guarda as arenas e o processo continua ocupando o mesmo tanto
+aos olhos do sistema — medido, 533 MB continuavam 533 MB. `malloc_trim(0)` devolve
+as arenas livres e leva o mesmo caso a 174 MB. O resíduo é alocação nativa do
+ctranslate2 que não passa pelo alocador padrão.
+
+**Cabe numa VPS de 2 GB:** a stack inteira usa 379 MB, e com o modelo carregado
+~860 MB — 42% da máquina. Trocar para `medium` **não** caberia.
+
+`docker compose exec worker python -m app.transcricao --conferir` diz qual via
+será usada e se a externa responde. Vale rodar depois de configurar a chave: com
+a chave posta e o serviço fora do ar, o sintoma seria só lentidão e memória
+subindo, sem nada apontando a causa.
+
 O modelo do Whisper fica em `volumes/modelos/` (`HF_HOME`), senão seria baixado
 de novo a cada recriação do container — justamente quando a rede já demonstrou
 não estar confiável. Vale pré-aquecer no deploy:

@@ -155,3 +155,76 @@ async def test_sem_chave_configurada_a_api_externa_nem_e_tentada(monkeypatch):
     monkeypatch.setattr(settings, "transcricao_api_chave", "")
     with pytest.raises(t.FalhaNaTranscricao, match="não configurada"):
         await t._via_api_externa(b"audio", "obs.webm")
+
+
+async def test_decide_sozinho_se_mantem_o_modelo(monkeypatch):
+    """Sem API externa o Whisper é o caminho normal e fica carregado; com API
+    ele é plano B, e uma única falha dela não pode prender ~480 MB até alguém
+    reiniciar o worker."""
+    from app.core.config import Settings
+
+    assert Settings(transcricao_api_chave="").manter_whisper_na_memoria is True
+    assert Settings(transcricao_api_chave="abc").manter_whisper_na_memoria is False
+
+
+async def test_a_escolha_pode_ser_forcada():
+    from app.core.config import Settings
+
+    forcado = Settings(transcricao_api_chave="abc", whisper_manter_carregado="sim")
+    assert forcado.manter_whisper_na_memoria is True
+
+    desligado = Settings(transcricao_api_chave="", whisper_manter_carregado="0")
+    assert desligado.manter_whisper_na_memoria is False
+
+
+async def test_descarregar_sem_modelo_carregado_nao_quebra():
+    import app.transcricao as t
+
+    t._modelo_local = None
+    t._descarregar_modelo()  # não deve levantar nada
+
+
+async def test_conferir_configuracao_sem_api_externa(monkeypatch):
+    """Serve para saber qual via será usada antes de confiar nela."""
+    import app.transcricao as t
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "transcricao_api_chave", "")
+    resultado = await t.conferir_configuracao()
+
+    assert resultado["via_preferida"] == "whisper-local"
+    assert resultado["api_configurada"] is False
+    assert "api_responde" not in resultado
+
+
+async def test_conferir_configuracao_com_api_que_responde(monkeypatch):
+    import app.transcricao as t
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "transcricao_api_chave", "chave")
+
+    async def responde(_audio, _nome):
+        raise t.FalhaNaTranscricao("API externa devolveu texto vazio")
+
+    monkeypatch.setattr(t, "_via_api_externa", responde)
+    resultado = await t.conferir_configuracao()
+
+    # Silêncio devolve texto vazio, e isso prova que a chamada foi aceita.
+    assert resultado["via_preferida"] == "api-externa"
+    assert resultado["api_responde"] is True
+
+
+async def test_conferir_configuracao_com_api_fora_do_ar(monkeypatch):
+    import app.transcricao as t
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "transcricao_api_chave", "chave")
+
+    async def cai(_audio, _nome):
+        raise ConnectionError("sem rota para o servidor")
+
+    monkeypatch.setattr(t, "_via_api_externa", cai)
+    resultado = await t.conferir_configuracao()
+
+    assert resultado["api_responde"] is False
+    assert "rota" in resultado["detalhe"]

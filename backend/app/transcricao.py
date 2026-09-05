@@ -10,6 +10,8 @@ Nada disso roda na requisição do técnico: a transcrição é um job do worker
 disparado só depois que a pesagem já está a salvo no banco.
 """
 
+import ctypes
+import gc
 import logging
 
 import httpx
@@ -84,6 +86,36 @@ def _carregar_modelo_local():
     return _modelo_local
 
 
+def _descarregar_modelo() -> None:
+    """Devolve a memória do modelo.
+
+    ~480 MB no worker, medido. Quando o Whisper é apenas plano B, mantê-lo
+    carregado significa que **uma única** falha da API externa — crédito
+    vencido, rede instável por um minuto — prende essa memória até alguém
+    reiniciar o worker. Recarregar custa ~10 s, e o caminho é raro por
+    definição.
+    """
+    global _modelo_local
+    if _modelo_local is None:
+        return
+
+    _modelo_local = None
+    gc.collect()
+
+    # `gc.collect()` sozinho não resolve: ele libera os objetos, mas o alocador
+    # do glibc guarda as arenas e o processo continua ocupando a memória aos
+    # olhos do sistema — medido, 533 MB viravam 533 MB. `malloc_trim` devolve as
+    # arenas livres ao sistema operacional e leva o mesmo caso a 174 MB.
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        # Fora do glibc (Alpine, por exemplo) não existe; o modelo já foi
+        # liberado de qualquer forma.
+        pass
+
+    logger.info("modelo local descarregado")
+
+
 def _via_whisper_local(audio: bytes) -> str:
     import io
 
@@ -100,6 +132,10 @@ def _via_whisper_local(audio: bytes) -> str:
         condition_on_previous_text=False,
     )
     texto = " ".join(s.text.strip() for s in segmentos).strip()
+
+    if not settings.manter_whisper_na_memoria:
+        _descarregar_modelo()
+
     if not texto:
         raise FalhaNaTranscricao("Whisper local não encontrou fala no áudio")
     return texto
@@ -120,16 +156,68 @@ async def transcrever(audio: bytes, nome: str = "observacao.webm") -> tuple[str,
 
 
 def preaquecer() -> None:
-    """Baixa e carrega o modelo local antecipadamente.
+    """Baixa o modelo local antecipadamente.
 
     Vale rodar no deploy: sem isso, o primeiro áudio a cair no fallback dispara o
     download do modelo — justamente quando a rede já demonstrou não estar
-    confiável.
+    confiável. Baixar é o que importa; se o modelo não deve ficar carregado, ele
+    é liberado em seguida.
     """
     _carregar_modelo_local()
-    logger.info("modelo local pronto")
+    logger.info("modelo local pronto", extra={"arquivo_baixado": True})
+
+    if not settings.manter_whisper_na_memoria:
+        _descarregar_modelo()
+
+
+async def conferir_configuracao() -> dict:
+    """Diz qual via será usada e se a externa responde.
+
+    Existe para conferir **antes** de confiar nela: com a chave configurada e o
+    serviço fora do ar, o sintoma seria só lentidão e memória subindo, sem nada
+    que apontasse a causa.
+    """
+    resultado = {
+        "via_preferida": "api-externa" if settings.transcricao_api_chave else "whisper-local",
+        "api_configurada": bool(settings.transcricao_api_chave),
+        "url": settings.transcricao_api_url,
+        "modelo_local": settings.whisper_modelo_local,
+        "mantem_modelo_na_memoria": settings.manter_whisper_na_memoria,
+    }
+
+    if settings.transcricao_api_chave:
+        # Um segundo de silêncio: o menor áudio válido que prova o caminho.
+        import struct, wave, io
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(16000)
+            w.writeframes(struct.pack("<h", 0) * 16000)
+        try:
+            await _via_api_externa(buffer.getvalue(), "teste.wav")
+            resultado["api_responde"] = True
+        except FalhaNaTranscricao as exc:
+            # Texto vazio é resposta legítima para silêncio — o que se está
+            # conferindo é se a chamada foi aceita.
+            resultado["api_responde"] = "vazio" in str(exc)
+            resultado["detalhe"] = str(exc)
+        except Exception as exc:  # noqa: BLE001
+            resultado["api_responde"] = False
+            resultado["detalhe"] = str(exc)
+
+    return resultado
 
 
 if __name__ == "__main__":
+    import asyncio
+    import json
+    import sys
+
     logging.basicConfig(level=logging.INFO)
-    preaquecer()
+
+    if "--conferir" in sys.argv:
+        print(json.dumps(asyncio.run(conferir_configuracao()), indent=2, ensure_ascii=False))
+    else:
+        preaquecer()
