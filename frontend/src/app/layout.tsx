@@ -21,8 +21,16 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="pt-BR">
-      <body className="font-corpo antialiased">{children}</body>
+    // suppressHydrationWarning aqui é sobre extensões do navegador, não sobre
+    // erro nosso: LanguageTool, Grammarly e afins injetam atributos em <html> e
+    // <body> antes do React hidratar (`data-lt-installed`, `data-new-gr-...`),
+    // e o React reclama de uma diferença que não veio do nosso código. O efeito
+    // é limitado a estes dois elementos — mismatch de verdade, dentro da
+    // árvore, continua sendo reportado.
+    <html lang="pt-BR" suppressHydrationWarning>
+      <body className="font-corpo antialiased" suppressHydrationWarning>
+        {children}
+      </body>
     </html>
   );
 }

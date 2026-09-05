@@ -205,9 +205,13 @@ Sistema sem nenhum usuário não consegue autenticar ninguém — e portanto nã
 como criar o primeiro administrador. O router `/setup` resolve isso e se fecha
 sozinho:
 
-- `GET /setup/status` → `{"precisa_configuracao": bool}`. Rota **pública**; o
-  frontend consulta antes da tela de login e manda o visitante para
-  `/primeiro-acesso` se o sistema estiver vazio.
+- `GET /setup/status` → `{"precisa_configuracao": bool}`. Rota **pública**.
+  **Toda tela de entrada consulta**, não só a raiz: `/`, `/tecnico/login` e
+  `/dashboard/login`. Quem abre `/tecnico` direto num sistema recém-subido
+  cairia num login sem caminho nenhum para sair dele.
+- Falha ao consultar o status **não** manda ninguém para o cadastro inicial:
+  API fora do ar não é prova de sistema vazio, e oferecer a criação de um admin
+  num sistema que já tem dono seria pior que mostrar a tela de login.
 - `POST /setup/primeiro-acesso` cria o primeiro **admin master** e a primeira
   fazenda no mesmo passo (sem fazenda ele não conseguiria logar), e já devolve a
   sessão pronta. A partir do primeiro usuário existente, responde 409 para

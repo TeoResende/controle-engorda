@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Aviso, Botao, Cabecalho, Campo } from "@/components/ui";
 import { api, ErroApi, SemConexao } from "@/lib/api";
+import { precisaConfiguracao } from "@/lib/instalacao";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
 import { baixarRebanho } from "@/lib/sync";
 
@@ -18,6 +19,14 @@ export default function Login() {
   // Técnico que atende mais de uma fazenda escolhe em qual vai operar: o login
   // devolve 409 com a lista em vez de adivinhar.
   const [fazendas, setFazendas] = useState<Fazenda[] | null>(null);
+
+  // Instalação sem nenhum usuário: manda criar o primeiro administrador. Sem
+  // isto, esta tela seria um beco sem saída num sistema recém-subido.
+  useEffect(() => {
+    precisaConfiguracao().then((precisa) => {
+      if (precisa) router.replace("/primeiro-acesso");
+    });
+  }, [router]);
 
   async function autenticar(email: string, senha: string, fazenda_id?: string) {
     setErro(null);

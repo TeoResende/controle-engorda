@@ -44,7 +44,9 @@ export default function PrimeiroAcesso() {
       // O endpoint já devolve a sessão pronta: não faz sentido pedir para a
       // pessoa logar com a senha que acabou de digitar.
       salvarSessao(sessao);
-      router.replace("/dashboard");
+      // Raiz e não dashboard: o primeiro usuário é admin master e pode querer
+      // tanto a área do cliente quanto a coleta.
+      router.replace("/");
     } catch (e) {
       setErro(
         e instanceof SemConexao

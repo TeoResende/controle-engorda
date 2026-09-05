@@ -83,3 +83,25 @@ describe("cliente de API", () => {
     await expect(api("/pesagens/x")).resolves.toBeNull();
   });
 });
+
+describe("checagem de instalação", () => {
+  it("acusa sistema vazio", async () => {
+    fetchFalso.mockResolvedValue(resposta(JSON.stringify({ precisa_configuracao: true })));
+    const { precisaConfiguracao } = await import("@/lib/instalacao");
+    await expect(precisaConfiguracao()).resolves.toBe(true);
+  });
+
+  it("com usuários cadastrados, não manda para o cadastro inicial", async () => {
+    fetchFalso.mockResolvedValue(resposta(JSON.stringify({ precisa_configuracao: false })));
+    const { precisaConfiguracao } = await import("@/lib/instalacao");
+    await expect(precisaConfiguracao()).resolves.toBe(false);
+  });
+
+  it("API fora do ar não manda ninguém para o cadastro inicial", async () => {
+    /* Falha de rede não é prova de sistema vazio — mandar para o primeiro
+       acesso aqui ofereceria criar um admin num sistema que já tem dono. */
+    fetchFalso.mockRejectedValue(new TypeError("Failed to fetch"));
+    const { precisaConfiguracao } = await import("@/lib/instalacao");
+    await expect(precisaConfiguracao()).resolves.toBe(false);
+  });
+});

@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Aviso, Botao, Cabecalho, Campo } from "@/components/ui";
 import { api, ErroApi, SemConexao } from "@/lib/api";
+import { precisaConfiguracao } from "@/lib/instalacao";
 import { salvarSessao, type Sessao } from "@/lib/sessao";
 
 type Fazenda = { fazenda_id: string; nome: string; papel: string };
@@ -15,6 +16,14 @@ export default function LoginCliente() {
   const [entrando, setEntrando] = useState(false);
   const [credenciais, setCredenciais] = useState({ email: "", senha: "" });
   const [fazendas, setFazendas] = useState<Fazenda[] | null>(null);
+
+  // Instalação sem nenhum usuário: manda criar o primeiro administrador. Sem
+  // isto, esta tela seria um beco sem saída num sistema recém-subido.
+  useEffect(() => {
+    precisaConfiguracao().then((precisa) => {
+      if (precisa) router.replace("/primeiro-acesso");
+    });
+  }, [router]);
 
   async function autenticar(email: string, senha: string, fazenda_id?: string) {
     setErro(null);
