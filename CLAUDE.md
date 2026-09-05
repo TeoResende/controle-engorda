@@ -826,6 +826,44 @@ folha de estilo de impressão: o motor de PDF do navegador é melhor que
 WeasyPrint, não pesa a imagem do backend com Cairo/Pango, e a pessoa escolhe o
 papel. No papel, a tabela volta a ser tabela mesmo onde a tela vira cartão.
 
+### Folha de impressão — o que foi descoberto gerando PDF de verdade
+
+A primeira versão da folha de estilo parecia certa lendo o CSS e saía errada na
+impressora. O jeito de conferir foi renderizar o PDF com Chromium headless
+(Playwright), converter as páginas em imagem e **olhar**. Cada item abaixo é um
+defeito que só apareceu assim:
+
+1. **Contêiner que recorta overflow não fragmenta.** O corpo do dashboard vive
+   dentro de `flex min-h-screen` + `main.overflow-x-hidden`. O Chrome desenha o
+   primeiro pedaço e **descarta o resto, sem erro**: a ficha do animal imprimia
+   2 das 9 pesagens e "Lotes ativos" saía com uma linha. A correção é destravar
+   a moldura no `@media print` — `body > div`, `main`, `main > div`, `ul`, `ol`,
+   `li` viram `display: block` com `overflow: visible` e altura livre.
+2. **Grade também fragmenta mal.** Só a faixa de indicadores continua `grid`; o
+   resto empilha como bloco, que é como se lê no papel.
+3. **`position: fixed` não repete por página.** O rodapé fixo foi desenhado uma
+   vez, no meio do conteúdo da página 2. Cabeçalho virou bloco comum no começo
+   do documento. Número de página e data quem imprime é a caixa de impressão do
+   navegador — não vale brigar com ela.
+4. **`break-inside: avoid` na seção truncava a seção.** Quem não pode quebrar é
+   a linha da tabela (`tr`) e o item de lista, não o bloco inteiro.
+5. **Sobras da tela vazam para o papel**: a barra de celular (`.lg\:hidden`), a
+   lupa do campo de busca, as setas de "abrir" dentro das células. Todas
+   escondidas explicitamente.
+6. **Cartão dentro de lista é registro, não seção**: com moldura e respiro de
+   tela, 32 observações davam 4 folhas quase vazias; viraram linhas separadas
+   por filete, 12 por folha.
+
+O cabeçalho (`components/impressao.tsx`) carrega fazenda, logo, título, recorte
+do filtro e data — uma folha que vai parar na mesa de alguém precisa se
+identificar sozinha duas semanas depois. `recorte` não é enfeite: sem ele a
+folha mente por omissão, parece o rebanho inteiro quando é um lote só.
+
+Para reconferir depois de mexer no layout: gerar os PDFs das quatro telas
+imprimíveis (`/dashboard`, `/dashboard/animais`, `/dashboard/observacoes`,
+`/dashboard/animal/[id]`) e olhar as páginas — principalmente a segunda, que é
+onde a paginação quebra.
+
 ## 8.8. Row-Level Security e backup (M10)
 
 ### A RLS só vale com papel restrito

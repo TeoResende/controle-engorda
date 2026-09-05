@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
+import { CabecalhoImpressao } from "@/components/impressao";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Cartao, Chip, Esqueleto, Vazio } from "@/components/ui";
@@ -51,6 +52,21 @@ function Conteudo() {
 
   return (
     <div className="flex flex-col gap-5">
+      <CabecalhoImpressao
+        titulo="Relação de animais"
+        // O recorte precisa ir no papel: uma lista filtrada que não diz o filtro
+        // parece o rebanho inteiro, e quem lê decide errado.
+        recorte={
+          [
+            lote ? "um lote" : null,
+            busca ? `busca “${busca}”` : null,
+            dados ? `${dados.total} animais` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+      />
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-titulo text-2xl font-extrabold text-verde">Animais</h1>
@@ -67,7 +83,7 @@ function Conteudo() {
           <BotaoImprimir />
         </div>
 
-        <div className="relative w-full max-w-xs">
+        <div className="relative w-full max-w-xs print:hidden">
           <Lupa className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-verde/40" />
           <input
             value={busca}

@@ -9,6 +9,7 @@ import { AudioObservacao } from "@/components/audio-observacao";
 import { CorrigirPesagem } from "@/components/corrigir-pesagem";
 import { EditarAnimal } from "@/components/editar-animal";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
+import { CabecalhoImpressao } from "@/components/impressao";
 import { Brinco } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
@@ -104,7 +105,12 @@ export default function DetalheAnimal() {
 
   return (
     <div className="flex flex-col gap-5">
-      <nav className="text-sm text-verde/50">
+      <CabecalhoImpressao
+        titulo="Ficha do animal"
+        recorte={`brinco ${dados.brinco}${dados.nome ? ` · ${dados.nome}` : ""}`}
+      />
+
+      <nav className="text-sm text-verde/50 print:hidden">
         <Link href="/dashboard/animais" className="hover:text-verde">
           Animais
         </Link>

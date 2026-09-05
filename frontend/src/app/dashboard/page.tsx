@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
+import { CabecalhoImpressao } from "@/components/impressao";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
@@ -91,6 +92,11 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col gap-5">
+      <CabecalhoImpressao
+        titulo="Visão geral do rebanho"
+        recorte={`${dados.animais_ativos} animais ativos`}
+      />
+
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="font-titulo text-2xl font-extrabold text-verde">Visão geral</h1>

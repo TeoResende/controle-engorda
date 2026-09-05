@@ -81,36 +81,197 @@
  * O botão "Imprimir / PDF" usa o motor do próprio navegador em vez de uma
  * biblioteca no servidor: o resultado é melhor, não pesa a imagem do backend
  * com Cairo/Pango, e a pessoa escolhe o papel. Em troca, a página precisa saber
- * se comportar no papel.
+ * se comportar no papel — e papel tem regras próprias.
+ *
+ * Duas premissas guiam o que vem abaixo:
+ *
+ * 1. **A impressora do escritório da fazenda é preto e branco.** Nada pode
+ *    depender de cor para ter sentido: status vira texto com moldura, alerta
+ *    vira barra lateral. Os navegadores ainda descartam fundos por padrão, o que
+ *    tornaria um chip verde e um vermelho idênticos.
+ * 2. **A folha vai parar na mesa de alguém.** Ela precisa dizer sozinha de qual
+ *    fazenda é, qual relatório, com que recorte e de quando.
  */
 @media print {
   @page {
-    margin: 14mm;
+    size: A4 portrait;
+    /* Cabeçalho é bloco comum, não elemento fixo — a margem não precisa
+       reservar espaço para ele. O que sobra de margem é só respiro de leitura
+       e a faixa onde o navegador imprime data e número de página. */
+    margin: 14mm 12mm 14mm;
   }
 
+  html,
   body {
-    background: #fff;
+    background: #fff !important;
+    color: #000 !important;
+    /* 10pt é o corpo confortável no papel; 16px de tela desperdiçaria folha. */
+    font-size: 10pt;
+    line-height: 1.35;
   }
 
-  /* Navegação, botões e campos não existem no papel. */
+  /* --- Cabeçalho e rodapé ----------------------------------------------- */
+
+  /* Blocos normais, não fixos: o Chrome não repete elemento fixo em todas as
+     páginas — ele o desenha uma vez e no lugar errado, por cima do conteúdo da
+     página seguinte. Verificado gerando o PDF. A numeração fica por conta da
+     caixa de impressão do navegador. */
+  .cabecalho-impressao {
+    margin-bottom: 4mm;
+    padding-bottom: 2mm;
+    border-bottom: 0.6pt solid #666;
+    color: #000;
+    break-after: avoid;
+  }
+
+  /* --- O que não existe no papel ---------------------------------------- */
+
   aside,
   nav,
-  header button,
   input,
   select,
+  textarea,
+  button,
+  audio,
   .print\:hidden {
     display: none !important;
   }
 
-  /* Cartões viram blocos com moldura fina; sombra e canto arredondado só
-     gastam tinta. */
-  section {
-    border-radius: 0 !important;
-    border-color: #d8ddd2 !important;
+  /* A barra de celular tem só o botão de menu e o nome do produto — no papel
+     seria uma palavra solta acima do cabeçalho do relatório. */
+  .lg\:hidden {
+    display: none !important;
+  }
+
+  /* Setas de "abrir" dentro de tabela: são gesto de tela, viram sujeira no
+     papel. */
+  td a svg,
+  th:empty {
+    display: none !important;
+  }
+
+  /* --- Destravando a moldura da tela ------------------------------------ */
+
+  /* Esta é a regra que mais importa aqui. O corpo do dashboard vive dentro de
+     `flex min-h-screen` + `main overflow-x-hidden`: na tela isso segura a
+     barra lateral e evita rolagem horizontal, mas o Chrome NÃO consegue
+     fragmentar um contêiner que recorta o overflow. Ele desenha o primeiro
+     pedaço e joga fora o resto — sem erro, sem aviso.
+     Foi por isso que a ficha do animal imprimia 2 das 9 pesagens e "Lotes
+     ativos" aparecia com uma linha só. Verificado gerando o PDF e conferindo
+     no papel. */
+  body > div,
+  main,
+  main > div,
+  ul,
+  ol,
+  li {
+    display: block !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  [class*="overflow-"] {
+    overflow: visible !important;
+  }
+
+  [class*="max-h-"] {
+    max-height: none !important;
+  }
+
+  /* Item de lista curto não deve ser partido no meio. */
+  li {
     break-inside: avoid;
   }
 
-  /* Tabela no papel é tabela, mesmo que na tela vire cartão no celular. */
+  /* --- Blocos ------------------------------------------------------------ */
+
+  section,
+  .rounded-2xl,
+  .rounded-xl {
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  section {
+    border: 0.4pt solid #bbb !important;
+    padding: 3mm 4mm !important;
+    margin-bottom: 3mm !important;
+    /* `break-inside: avoid` aqui truncava a seção: uma tabela mais alta que a
+       página era cortada e o resto sumia. Quem não pode quebrar é a linha da
+       tabela, não o bloco inteiro. */
+    break-inside: auto;
+  }
+
+  /* Cartão dentro de lista (observações de campo) é registro, não seção: com a
+     moldura e o respiro da tela, 32 anotações viravam 4 folhas quase vazias.
+     No papel vira linha separada por um filete. */
+  li section {
+    border: 0 !important;
+    border-bottom: 0.3pt solid #ddd !important;
+    padding: 1.5mm 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Blocos curtos — indicadores, ficha de dados — cabem numa página e ficam
+     melhores inteiros. */
+  section > dl,
+  .grid > div {
+    break-inside: avoid;
+  }
+
+  /* Título de seção não pode ficar órfão no pé da página. */
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+    color: #000 !important;
+  }
+
+  h1 {
+    font-size: 14pt;
+  }
+
+  h2 {
+    font-size: 11pt;
+  }
+
+  /* --- Indicadores ------------------------------------------------------- */
+
+  /* Grade também não fragmenta bem entre páginas: só continua grade onde o
+     conteúdo é baixo e cabe numa linha — a faixa de indicadores. O resto vira
+     bloco e empilha, que é como se lê no papel de qualquer jeito. */
+  .grid {
+    display: block !important;
+  }
+
+  .sm\:grid-cols-2,
+  .xl\:grid-cols-4 {
+    display: grid !important;
+    gap: 2mm !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+
+  .sm\:grid-cols-3 {
+    display: grid !important;
+    gap: 2mm !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* --- Tabelas ----------------------------------------------------------- */
+
+  /* No papel a tabela volta a ser tabela, mesmo onde a tela vira cartão. */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 9pt;
+  }
+
   thead {
     display: table-header-group !important;
   }
@@ -127,19 +288,73 @@
     break-inside: avoid;
   }
 
-  td {
-    display: table-cell !important;
-    padding: 4px 8px !important;
+  th {
+    border-bottom: 0.8pt solid #333 !important;
+    padding: 1.5mm 2mm !important;
+    font-size: 8pt;
     text-align: left !important;
   }
 
-  /* O rótulo da coluna é para o formato de cartão; no papel o cabeçalho basta. */
-  td > span:first-child.uppercase {
+  td {
+    display: table-cell !important;
+    border-bottom: 0.3pt solid #ddd !important;
+    padding: 1.5mm 2mm !important;
+    text-align: left !important;
+    vertical-align: top;
+  }
+
+  /* O rótulo da coluna é para o formato de cartão do celular; no papel o
+     cabeçalho da tabela já diz o que é. */
+  td > span.uppercase:first-child {
     display: none !important;
+  }
+
+  /* --- Cor vira forma ----------------------------------------------------- */
+
+  /* Chip: sem fundo, ganha moldura — senão "No prazo" e "Atenção" sairiam
+     idênticos numa impressora preto e branco. */
+  .rounded-full {
+    border: 0.4pt solid #666 !important;
+    border-radius: 2pt !important;
+    padding: 0.3mm 1.2mm !important;
+    font-size: 8pt;
+  }
+
+  /* Alerta: a barra à esquerda sobrevive ao preto e branco. */
+  .border-l-\[3px\] {
+    border-left: 1.5pt solid #000 !important;
+  }
+
+  /* Texto claro demais some no papel. */
+  .text-verde\/70,
+  .text-verde\/60,
+  .text-verde\/55,
+  .text-verde\/50,
+  .text-verde\/45,
+  .text-verde\/40 {
+    color: #444 !important;
+  }
+
+  /* --- Gráfico ------------------------------------------------------------ */
+
+  /* O preenchimento da área é decorativo e o navegador o descartaria de
+     qualquer forma; a linha é que carrega a informação. */
+  svg path[fill^="url"] {
+    display: none;
+  }
+
+  svg {
+    max-height: 60mm;
   }
 
   a {
     text-decoration: none;
     color: inherit;
+  }
+
+  /* Evita quebrar logo depois de um título de bloco. */
+  figure,
+  dl {
+    break-inside: avoid;
   }
 }

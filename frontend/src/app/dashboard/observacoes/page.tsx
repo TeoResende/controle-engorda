@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AudioObservacao } from "@/components/audio-observacao";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { Lupa } from "@/components/icones";
+import { CabecalhoImpressao } from "@/components/impressao";
 import { Cartao, Chip, Esqueleto, Vazio } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
 import { data as formatarData, peso as formatarPeso } from "@/lib/formato";
@@ -51,6 +52,15 @@ export default function Observacoes() {
 
   return (
     <div className="flex flex-col gap-5">
+      <CabecalhoImpressao
+        titulo="Observações de campo"
+        recorte={
+          [busca ? `busca “${busca}”` : null, itens ? `${filtradas.length} registros` : null]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+      />
+
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-titulo text-2xl font-extrabold text-verde">Observações</h1>
