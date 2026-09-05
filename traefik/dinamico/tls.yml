@@ -1,4 +1,13 @@
-# Certificado autoassinado para desenvolvimento na rede local.
+# Certificado de desenvolvimento para a rede local, assinado por uma autoridade
+# própria (`ca.crt`).
+#
+# Autoassinado puro não serve: o Chrome **recusa registrar Service Worker** em
+# página com erro de certificado, mesmo depois de a pessoa clicar em "continuar
+# assim mesmo" — o aviso some da tela, mas a origem segue marcada como insegura
+# por baixo, e o app nunca funciona offline. Com uma CA instalada como confiável
+# no aparelho não há erro nenhum, e tudo passa a funcionar.
+#
+# Gerar de novo (troca de IP, validade vencida): ./traefik/gerar-certificados.sh
 #
 # Não é firula: Service Worker, PWA instalável e Web NFC só funcionam em
 # contexto seguro. Sem HTTPS, o M5 e o M6 não são testáveis no celular de
@@ -11,8 +20,8 @@ tls:
   stores:
     default:
       defaultCertificate:
-        certFile: /etc/traefik/certificados/local.crt
+        certFile: /etc/traefik/certificados/cadeia.crt
         keyFile: /etc/traefik/certificados/local.key
   certificates:
-    - certFile: /etc/traefik/certificados/local.crt
+    - certFile: /etc/traefik/certificados/cadeia.crt
       keyFile: /etc/traefik/certificados/local.key

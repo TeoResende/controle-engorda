@@ -153,17 +153,81 @@ Em endereço `http://` (sem o "s"), o aplicativo **abre e registra peso**, mas:
 
 O próprio aplicativo avisa quando isso acontece, com uma tarja no alto da tela.
 
-> **Em teste na rede local:** use o endereço com `https://` e a porta `8443`. O
-> navegador vai avisar que "a conexão não é particular" — isso acontece porque o
-> certificado é caseiro, feito para testes. Toque em *Avançado* → *Continuar*.
-> Uma vez só, por aparelho.
+> **Em teste na rede local:** não basta clicar em "continuar assim mesmo" no
+> aviso de certificado. O navegador tira o aviso da tela mas continua tratando o
+> endereço como inseguro por baixo — e o modo offline nunca liga. É preciso
+> **instalar o certificado no aparelho**, uma vez só. Veja
+> [Preparando o celular para o teste](#preparando-o-celular-para-o-teste) logo
+> abaixo.
 >
-> **Em produção**, com domínio de verdade, esse aviso não existe.
+> **Em produção**, com domínio de verdade, nada disso é necessário.
 
 ### 2. O celular precisa ter aberto o aplicativo uma vez, com internet
 
 A cópia do aplicativo e a lista de animais precisam ser baixadas antes. Não dá
 para "ficar offline" num aparelho que nunca esteve online.
+
+---
+
+## Preparando o celular para o teste
+
+> Só para **teste na rede local**. Em produção, com domínio próprio, pule esta
+> seção inteira.
+
+Endereços da internet têm um certificado emitido por uma autoridade que todos os
+aparelhos já conhecem. Um servidor de teste na rede de casa não tem — então
+criamos uma autoridade nossa, e o celular precisa ser avisado de que ela é
+confiável.
+
+**É rápido, e é uma vez por aparelho.**
+
+### 1. Baixe o certificado
+
+No navegador do celular, abra:
+
+```
+http://192.168.0.130:8081/ca-engorda.crt
+```
+
+O arquivo será baixado.
+
+### 2. Instale como certificado de autoridade
+
+Nas **Configurações do Android**:
+
+*Segurança* → *Mais configurações de segurança* → *Criptografia e credenciais* →
+*Instalar um certificado* → **Certificado CA**
+
+O aparelho vai avisar que "sua privacidade pode estar em risco". É esperado:
+esse aviso aparece para qualquer certificado instalado à mão. Toque em
+**Instalar mesmo assim**, escolha o arquivo `ca-engorda.crt` que você baixou e
+dê um nome, como *Engorda*.
+
+> O caminho exato muda um pouco entre fabricantes. Se não achar, procure por
+> "certificado" na busca das Configurações.
+
+### 3. Abra o aplicativo pelo endereço seguro
+
+```
+https://app.192.168.0.130.nip.io:8443/tecnico
+```
+
+Agora **não deve aparecer nenhum aviso** de conexão não particular. Se aparecer,
+o certificado não foi instalado corretamente — refaça o passo 2.
+
+### 4. Confirme
+
+Entre no aplicativo e vá em **Mais → Uso sem internet**. As quatro linhas devem
+estar verdes.
+
+### Já tentou antes e não deu certo?
+
+Limpe o que ficou guardado da tentativa anterior, senão ela atrapalha:
+
+*Chrome* → ⋮ → *Configurações do site* → *Dados armazenados* → localize o
+endereço → **Limpar**.
+
+Depois refaça do passo 3.
 
 ---
 
@@ -211,6 +275,9 @@ exatamente o que falta:
 
 - **Conexão segura: não** → você está em `http://`. Troque para `https://` na
   porta `8443`.
+- **App preparado: não**, e ao tocar em preparar aparece uma mensagem sobre
+  **certificado** → o certificado da autoridade não está instalado no aparelho.
+  Volte para [Preparando o celular para o teste](#preparando-o-celular-para-o-teste).
 - **App preparado: não** → toque em *Preparar para o campo*, com internet.
 - **Telas guardadas: poucas** → o preparo foi interrompido. Toque em preparar de
   novo e espere terminar.
@@ -248,6 +315,12 @@ prioridade: se o áudio falhar, o peso já está salvo.
 **Quanto tempo posso ficar sem sinal?**
 Dias, se precisar. O limite prático é o espaço do celular, e uma pesagem ocupa
 muito pouco. Áudios ocupam mais — por isso a gravação é limitada a um minuto.
+
+**Por que clicar em "continuar assim mesmo" no aviso de certificado não resolve?**
+Porque o aviso e a permissão são coisas diferentes. Ao continuar, o navegador
+deixa você *ver* a página, mas mantém o endereço marcado como inseguro por
+dentro — e recursos como funcionar sem internet, ler NFC e usar o microfone
+seguem bloqueados. Só instalar o certificado como confiável remove a marca.
 
 **O painel do cliente funciona sem internet?**
 Não, e é de propósito. Lá se toma decisão olhando número. Mostrar dado velho

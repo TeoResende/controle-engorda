@@ -8,4 +8,8 @@ node_modules/
 .next/
 out/
 letsencrypt/
+# Certificados de desenvolvimento: chaves privadas nunca vão para o repositório.
+# Recrie com ./traefik/gerar-certificados.sh
+traefik/certificados/
+frontend/public/ca-engorda.crt
 .DS_Store

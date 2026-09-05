@@ -426,14 +426,33 @@ silenciosa e só aparece no aparelho.
 O app avisa quando está em http (`components/aviso-inseguro.tsx`), dizendo o que
 funciona e o que não, para ninguém concluir que o sistema está quebrado.
 
-### HTTPS na rede local
+### HTTPS na rede local — e por que autoassinado não serve
 
-Service Worker, PWA instalável e Web NFC só funcionam em **contexto seguro** —
-sem HTTPS, M5 e M6 não são testáveis em celular, só no localhost da máquina de
-desenvolvimento. Por isso existe um certificado autoassinado em
-`traefik/certificados/` (gerado com `openssl`, SANs para os hosts `.nip.io`, os
-`.localhost` e o IP). O navegador avisa que não confia; aceitar a exceção uma vez
-basta. No M9 quem emite é o Let's Encrypt e este certificado sai de cena.
+Service Worker, PWA instalável e Web NFC só funcionam em **contexto seguro**.
+
+**Certificado autoassinado não resolve.** O Chrome **recusa registrar Service
+Worker em página com erro de certificado**, e clicar em "continuar assim mesmo"
+não muda isso: o aviso some da tela, mas a origem segue marcada como insegura por
+baixo. O sintoma é traiçoeiro — `isSecureContext` responde `true`, o diagnóstico
+mostra "HTTPS: sim", e mesmo assim o registro falha. Foi o que travou o primeiro
+teste em campo.
+
+A saída é uma **autoridade certificadora própria**, instalada como confiável no
+aparelho. `./traefik/gerar-certificados.sh [IP]` cria a CA (10 anos, reaproveitada
+entre execuções para não obrigar a reinstalar nos aparelhos) e o certificado do
+servidor (825 dias, o teto que os navegadores aceitam). O Traefik serve a cadeia
+completa, e a CA fica baixável em `/ca-engorda.crt` — com o tipo MIME que o
+Android reconhece.
+
+`traefik/certificados/` está no `.gitignore`: chave privada, mesmo de
+desenvolvimento, não entra no repositório.
+
+No M9, com domínio real, quem emite é o Let's Encrypt e nada disso é necessário.
+
+**`navigator.serviceWorker.ready` nunca rejeita.** Se o registro é barrado, a
+promessa simplesmente não resolve — quem espera por ela fica preso para sempre.
+Foi assim que a tela ficou em "Preparando…" sem nunca terminar. Toda espera por
+ela tem prazo, em `lib/worker.ts`, e o motivo real da falha chega à tela.
 
 ### A API responde em `/api`, no mesmo domínio do app
 

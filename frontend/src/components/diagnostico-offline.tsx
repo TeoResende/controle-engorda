@@ -74,6 +74,7 @@ export function DiagnosticoOffline() {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [preparando, setPreparando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [falha, setFalha] = useState<string | null>(null);
 
   const atualizar = useCallback(() => {
     medir().then(setEstado);
@@ -84,19 +85,21 @@ export function DiagnosticoOffline() {
   async function prepararParaOCampo() {
     setPreparando(true);
     setResultado(null);
-    try {
-      await registrarWorker();
-      const registro = await navigator.serviceWorker.ready;
-      // Manda guardar tudo de novo e espera o suficiente para o install rodar.
-      registro.active?.postMessage("reaquecer");
-      await new Promise((r) => setTimeout(r, 2500));
-      atualizar();
-      setResultado("Aparelho preparado. Pode desligar a internet e testar.");
-    } catch (e) {
-      setResultado(e instanceof Error ? e.message : "Não consegui preparar");
-    } finally {
+    setFalha(null);
+
+    const resultado = await registrarWorker();
+    if (!resultado.ok) {
+      setFalha(resultado.motivo);
       setPreparando(false);
+      atualizar();
+      return;
     }
+
+    // Dá tempo de o install baixar as telas antes de medir de novo.
+    await new Promise((r) => setTimeout(r, 3000));
+    atualizar();
+    setResultado("Aparelho preparado. Pode desligar a internet e testar.");
+    setPreparando(false);
   }
 
   if (!estado) return null;
@@ -175,7 +178,8 @@ export function DiagnosticoOffline() {
         >
           {preparando ? "Preparando…" : "Preparar para o campo"}
         </Botao>
-        {resultado && <Aviso>{resultado}</Aviso>}
+        {resultado && <Aviso tom="sucesso">{resultado}</Aviso>}
+        {falha && <Aviso tom="erro">{falha}</Aviso>}
       </div>
     </Cartao>
   );
