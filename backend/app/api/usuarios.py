@@ -134,6 +134,26 @@ async def atualizar_papel(
     return _resposta(vinculo)
 
 
+@router.post("/{usuario_id}/reativar", response_model=MembroResponse)
+async def reativar(
+    usuario_id: uuid.UUID,
+    ctx: AdminDep,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> MembroResponse:
+    """Devolve o acesso a quem tinha saído da fazenda.
+
+    Reativa o vínculo antigo em vez de criar outro, para o registro de quando a
+    pessoa entrou pela primeira vez continuar de pé.
+    """
+    vinculo = await _vinculo(session, ctx.fazenda_id, usuario_id)
+    if vinculo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro não encontrado")
+
+    vinculo.desativado_em = None
+    await session.commit()
+    return _resposta(vinculo)
+
+
 @router.delete("/{usuario_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def desativar(
     usuario_id: uuid.UUID,

@@ -27,7 +27,12 @@ export default function Fila() {
     const resumo = await sincronizarTudo();
     setResultado(
       resumo.motivo
-        ? `Não deu para sincronizar: ${resumo.motivo}.`
+        ? // "Requer papel" é o servidor dizendo que esta conta não coleta —
+          // problema de permissão, não de rede, e a mensagem tem que separar os
+          // dois para ninguém ficar tentando sincronizar sem parar.
+          resumo.motivo.includes("papel")
+          ? "Esta conta não tem permissão para registrar pesagem. Peça a um administrador para mudar seu papel — o que você coletou continua guardado aqui."
+          : `Não deu para sincronizar: ${resumo.motivo}.`
         : `${resumo.enviadas} enviada(s). ${resumo.restantes} na fila.`,
     );
     setSincronizando(false);

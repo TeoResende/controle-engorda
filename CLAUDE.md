@@ -179,6 +179,7 @@ Postgres Row-Level Security, backup agendado (`pg_dump`).
 | | cliente | técnico | admin | admin master |
 |---|---|---|---|---|
 | Ler animais, lotes, fazenda | sim | sim | sim | sim |
+| **Entrar na área `/tecnico`** | **não** | sim | sim | sim |
 | Criar/editar animais e lotes | não | sim | sim | sim |
 | Editar dados da fazenda | não | não | sim | sim |
 | Gerir membros | não | não | sim | sim |
@@ -237,6 +238,21 @@ endpoints **desativa**; existe `POST .../reativar` para desfazer.
 - Desativar membro **não** apaga o vínculo: some da lista, bloqueia o login
   naquela fazenda, e o registro de que a pessoa trabalhou ali continua
   consultável. Readicionar o mesmo e-mail **reativa** o vínculo antigo.
+
+### Onde se gerencia a equipe
+
+`/dashboard/configuracoes`, com conta de **admin** (ou admin master). Ali se
+adiciona pessoa, troca o papel, remove e reativa. Cliente e técnico recebem 403
+e um aviso explicando de quem é a área.
+
+**Cliente não entra em `/tecnico`.** Ele é somente leitura e o servidor recusaria
+a pesagem com 403 — deixá-lo coletar guardaria no aparelho um peso que nunca
+poderia subir, falha que parece ter dado certo e só quebra depois, dentro da
+fila. A área mostra uma tela explicando e aponta para o dashboard.
+
+Quando a sincronização falha por papel (e não por rede), a tela da fila diz isso
+com todas as letras: insistir não resolveria, e o técnico precisa saber que o
+caminho é pedir a mudança de papel a um administrador.
 
 ### Outras decisões que valem para os próximos marcos
 

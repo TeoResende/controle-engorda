@@ -175,3 +175,31 @@ async def test_membro_de_outra_fazenda_nao_e_encontrado(client, dados, logar):
         f"/membros/{dados['cliente_b'].id}", json={"papel": "cliente"}, headers=admin
     )
     assert resposta.status_code == 404
+
+
+async def test_reativar_membro_devolve_o_acesso(client, dados, logar):
+    admin = await logar(dados["admin_a"])
+    alvo = str(dados["cliente_a"].id)
+
+    await client.delete(f"/membros/{alvo}", headers=admin)
+    assert (
+        await client.post(
+            "/auth/login", json={"email": dados["cliente_a"].email, "senha": dados["senha"]}
+        )
+    ).status_code == 403
+
+    voltou = await client.post(f"/membros/{alvo}/reativar", headers=admin)
+    assert voltou.status_code == 200
+    assert voltou.json()["ativo"] is True
+
+    assert (
+        await client.post(
+            "/auth/login", json={"email": dados["cliente_a"].email, "senha": dados["senha"]}
+        )
+    ).status_code == 200
+
+
+async def test_reativar_exige_admin(client, dados, logar):
+    tecnico = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    resposta = await client.post(f"/membros/{dados['cliente_a'].id}/reativar", headers=tecnico)
+    assert resposta.status_code == 403
