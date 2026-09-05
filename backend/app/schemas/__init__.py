@@ -17,7 +17,14 @@ from app.schemas.auth import (
 )
 from app.schemas.comum import Pagina
 from app.schemas.fazenda import FazendaAtualizar, FazendaCriar, FazendaResponse
-from app.schemas.lote import LoteAtualizar, LoteComContagem, LoteCriar, LoteResponse
+from app.schemas.lote import (
+    LoteAtualizar,
+    LoteComContagem,
+    LoteCriar,
+    LoteResponse,
+    MoverAnimais,
+    ResultadoMovimentacao,
+)
 from app.schemas.pesagem import (
     PesagemAtualizar,
     PesagemCriar,
@@ -43,6 +50,8 @@ __all__ = [
     "LoteCriar",
     "LoteResponse",
     "MembroAtualizar",
+    "MoverAnimais",
+    "ResultadoMovimentacao",
     "MembroCriar",
     "MembroResponse",
     "Pagina",

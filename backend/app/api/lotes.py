@@ -7,7 +7,14 @@ from sqlalchemy import func, select
 
 from app.core.deps import EscritaDep, SessaoDep
 from app.models import Animal, Lote, StatusAnimal
-from app.schemas import LoteAtualizar, LoteComContagem, LoteCriar, LoteResponse
+from app.schemas import (
+    LoteAtualizar,
+    LoteComContagem,
+    LoteCriar,
+    LoteResponse,
+    MoverAnimais,
+    ResultadoMovimentacao,
+)
 
 router = APIRouter(prefix="/lotes", tags=["lotes"])
 
@@ -72,6 +79,64 @@ async def atualizar(
     await sessao.commit()
     await sessao.session.refresh(lote)
     return lote
+
+
+@router.post("/{lote_id}/animais", response_model=ResultadoMovimentacao)
+async def mover_para_o_lote(
+    lote_id: uuid.UUID,
+    dados: MoverAnimais,
+    sessao: SessaoDep,
+    ctx: EscritaDep,
+) -> ResultadoMovimentacao:
+    """Põe os animais informados neste lote.
+
+    Só move animal desta fazenda — id de outro tenant é ignorado em silêncio,
+    não vira erro: quem pediu não deveria nem saber que ele existe.
+    """
+    lote = await _obter(sessao, lote_id)
+
+    encontrados = list(
+        await sessao.session.scalars(
+            sessao.selecionar(Animal).where(Animal.id.in_(dados.animal_ids))
+        )
+    )
+    achados = {a.id for a in encontrados}
+    for animal in encontrados:
+        animal.lote_id = lote.id
+
+    await sessao.commit()
+    return ResultadoMovimentacao(
+        movidos=len(encontrados),
+        ignorados=[i for i in dados.animal_ids if i not in achados],
+    )
+
+
+@router.delete("/{lote_id}/animais", response_model=ResultadoMovimentacao)
+async def tirar_do_lote(
+    lote_id: uuid.UUID,
+    dados: MoverAnimais,
+    sessao: SessaoDep,
+    ctx: EscritaDep,
+) -> ResultadoMovimentacao:
+    """Tira os animais do lote, sem apagar nada — eles ficam sem lote."""
+    await _obter(sessao, lote_id)
+
+    encontrados = list(
+        await sessao.session.scalars(
+            sessao.selecionar(Animal).where(
+                Animal.id.in_(dados.animal_ids), Animal.lote_id == lote_id
+            )
+        )
+    )
+    for animal in encontrados:
+        animal.lote_id = None
+
+    await sessao.commit()
+    achados = {a.id for a in encontrados}
+    return ResultadoMovimentacao(
+        movidos=len(encontrados),
+        ignorados=[i for i in dados.animal_ids if i not in achados],
+    )
 
 
 @router.delete("/{lote_id}", status_code=status.HTTP_204_NO_CONTENT)

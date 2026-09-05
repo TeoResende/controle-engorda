@@ -344,9 +344,28 @@ tarefa, e o técnico está com uma mão no celular e outra no animal.
 **Cliente** (barra lateral: Visão geral · Animais · Lotes · Configurações)
 
 `/dashboard` · `/dashboard/animais` (busca e paginação) · `/dashboard/lotes` ·
-`/dashboard/animal/[id]` · `/dashboard/configuracoes` (dados da fazenda e
-membros; a lista de membros é área de admin e o cliente recebe 403 com aviso).
-*Relatórios* não entrou: não está no escopo do MVP (seção 9).
+`/dashboard/lotes/[id]` (formação do lote) · `/dashboard/animal/[id]` ·
+`/dashboard/configuracoes` (dados da fazenda e equipe; a gestão de membros é área
+de admin e o cliente recebe 403 com aviso). *Relatórios* não entrou: não está no
+escopo do MVP (seção 9).
+
+### Formar lote
+
+Criar o lote e formá-lo são coisas diferentes. `/dashboard/lotes` cria o
+registro; `/dashboard/lotes/[id]` é onde ele vira um grupo: marca-se quem entra
+e confirma-se **em bloco**, por `POST /lotes/{id}/animais`. Mover um animal por
+vez seria inviável num curral de cem cabeças — e cada chamada, uma chance de
+parar no meio.
+
+- Animal que já está em outro lote aparece como candidato e é **remanejado**:
+  trocar de curral é rotina, não exceção.
+- Tirar do lote deixa o animal **sem lote**; não apaga nada.
+- Id de animal de outra fazenda é ignorado em silêncio, não vira erro — quem
+  pediu não deveria nem saber que ele existe. A resposta traz `movidos` e
+  `ignorados`.
+- No cadastro pelo app do técnico dá para já escolher o lote. Animal que nasce
+  sem lote fica fora de toda comparação por grupo até alguém lembrar de
+  encaixá-lo — e ninguém lembra.
 
 ### O que sobrevive sem sinal, e o que não
 

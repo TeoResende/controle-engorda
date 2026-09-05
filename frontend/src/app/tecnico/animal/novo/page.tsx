@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { Brinco, Voltar } from "@/components/icones";
 import { AreaDeTexto, Aviso, Botao, Campo, Selecao } from "@/components/ui";
@@ -29,12 +29,24 @@ type AnimalCriado = {
   status: string;
 };
 
+type LoteOpcao = { id: string; nome: string };
+
 function Conteudo() {
   const router = useRouter();
   const parametros = useSearchParams();
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [brinco, setBrinco] = useState(parametros.get("brinco") ?? "");
+  // Cadastro já exige internet, então buscar os lotes aqui não tira nada.
+  // Animal que nasce sem lote fica fora de toda comparação por grupo até
+  // alguém lembrar de encaixá-lo — e ninguém lembra.
+  const [lotes, setLotes] = useState<LoteOpcao[]>([]);
+
+  useEffect(() => {
+    apiAuth<LoteOpcao[]>("/lotes")
+      .then(setLotes)
+      .catch(() => setLotes([]));
+  }, []);
 
   async function salvar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
@@ -53,6 +65,7 @@ function Conteudo() {
           raca: texto("raca"),
           porte: texto("porte"),
           brinco_mae: texto("brinco_mae"),
+          lote_id: texto("lote_id"),
           data_nascimento: texto("data_nascimento"),
           peso_nascimento: texto("peso_nascimento"),
           observacoes: texto("observacoes"),
@@ -121,6 +134,14 @@ function Conteudo() {
           <Selecao rotulo="Raça" name="raca" opcoes={RACAS} defaultValue="Nelore" />
           <Selecao rotulo="Porte" name="porte" opcoes={PORTES} defaultValue="Médio" />
         </div>
+
+        {lotes.length > 0 && (
+          <Selecao
+            rotulo="Lote"
+            name="lote_id"
+            opcoes={[["", "Sem lote"], ...lotes.map((l) => [l.id, l.nome] as [string, string])]}
+          />
+        )}
 
         <Campo rotulo="Brinco da mãe" name="brinco_mae" placeholder="Ex: 0872" inputMode="numeric" />
 
