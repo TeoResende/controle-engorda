@@ -87,7 +87,7 @@ function Conteudo() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center gap-2 border-b border-verde/8 bg-white px-4 py-3">
+      <header className="sticky top-0 z-10 flex items-center gap-2 border-b border-borda bg-white px-4 py-3">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-verde">
           <Voltar />
           <span className="font-titulo font-extrabold">Cadastrar animal</span>
@@ -138,7 +138,12 @@ function Conteudo() {
         {erro && <Aviso tom="erro">{erro}</Aviso>}
 
         <div className="mt-auto pt-4">
-          <Botao type="submit" variante="destaque" disabled={salvando || !brinco.trim()}>
+          <Botao
+            type="submit"
+            variante="destaque"
+            carregando={salvando}
+            disabled={!brinco.trim()}
+          >
             {salvando ? "Cadastrando…" : "Salvar animal"}
           </Botao>
         </div>

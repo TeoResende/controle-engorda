@@ -85,7 +85,7 @@ export function UltimasPesagens({
           {(doServidor ?? []).map((p) => (
             <li
               key={p.id}
-              className="flex items-center justify-between rounded-xl border border-verde/8 bg-white px-4 py-2.5"
+              className="flex items-center justify-between rounded-xl border border-borda bg-white px-4 py-2.5"
             >
               <span className="text-sm text-verde/70">{formatarData(p.data)}</span>
               <span className="font-titulo font-bold text-verde">

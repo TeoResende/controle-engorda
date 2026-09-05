@@ -34,7 +34,7 @@ export function BarraSuperior({ fazenda }: { fazenda: string }) {
   }, []);
 
   return (
-    <header className="flex items-center justify-between border-b border-verde/8 bg-white px-4 py-3">
+    <header className="sticky top-0 z-10 flex items-center justify-between border-b border-borda bg-white px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         <Casa className="h-5 w-5 shrink-0 text-verde" />
         <span className="truncate font-titulo font-extrabold text-verde">{fazenda}</span>
@@ -79,7 +79,12 @@ export function NavegacaoInferior() {
   const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
 
   return (
-    <nav className="sticky bottom-0 flex border-t border-verde/8 bg-white">
+    <nav
+      className="sticky bottom-0 z-10 flex border-t border-borda bg-white"
+      // Barra de gestos do Android come o rodapé; sem isto o alvo de toque das
+      // abas fica embaixo dela.
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       {ABAS.map(({ href, rotulo, Icone }) => {
         const ativa = href === "/tecnico" ? caminho === href : caminho.startsWith(href);
         return (
@@ -87,8 +92,8 @@ export function NavegacaoInferior() {
             key={href}
             href={href}
             aria-current={ativa ? "page" : undefined}
-            className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-bold ${
-              ativa ? "text-verde" : "text-verde/40"
+            className={`relative flex flex-1 flex-col items-center gap-1 py-2.5 text-xs font-bold transition ${
+              ativa ? "text-verde" : "text-verde/40 hover:text-verde/70"
             }`}
           >
             <Icone className="h-6 w-6" />

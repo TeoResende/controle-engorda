@@ -128,7 +128,7 @@ function Conteudo() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-verde/8 bg-white px-4 py-3">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-borda bg-white px-4 py-3">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-verde">
           <Voltar />
           <span className="font-titulo font-extrabold">Nova pesagem</span>
@@ -211,7 +211,12 @@ function Conteudo() {
         <UltimasPesagens animalId={animal?.id ?? null} brinco={brinco} />
 
         <div className="mt-auto flex flex-col gap-2 pt-4">
-          <Botao type="submit" variante="destaque" disabled={salvando || !peso.trim()}>
+          <Botao
+            type="submit"
+            variante="destaque"
+            carregando={salvando}
+            disabled={!peso.trim()}
+          >
             {salvando ? "Salvando…" : "Salvar pesagem"}
           </Botao>
           <button

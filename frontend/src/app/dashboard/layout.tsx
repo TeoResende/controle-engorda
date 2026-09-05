@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { BarraLateral } from "@/components/barra-lateral";
+import { BarraLateral, BarraMovel } from "@/components/barra-lateral";
 import { lerSessao } from "@/lib/sessao";
 
 /**
@@ -17,6 +17,10 @@ export default function LayoutDashboard({ children }: { children: React.ReactNod
   const router = useRouter();
   const caminho = usePathname();
   const [pronto, setPronto] = useState(false);
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  // Navegar fecha a gaveta: no celular ela cobre a tela inteira.
+  useEffect(() => setMenuAberto(false), [caminho]);
 
   useEffect(() => {
     if (caminho === "/dashboard/login") {
@@ -38,8 +42,11 @@ export default function LayoutDashboard({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
-      <BarraLateral />
-      <main className="min-w-0 flex-1 overflow-x-hidden p-6">{children}</main>
+      <BarraLateral aberta={menuAberto} aoFechar={() => setMenuAberto(false)} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <BarraMovel aoAbrir={() => setMenuAberto(true)} />
+        <main className="min-w-0 flex-1 overflow-x-hidden p-4 sm:p-6">{children}</main>
+      </div>
     </div>
   );
 }

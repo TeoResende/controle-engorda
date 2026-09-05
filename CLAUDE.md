@@ -547,6 +547,67 @@ Todo número que o usuário lê passa por `lib/formato.ts` — vírgula decimal 
 `dd/mm/aaaa` montada a partir da string ISO, sem `new Date()`, que escorrega de
 fuso e mostra o dia anterior.
 
+## 8.6. Sistema visual e responsividade
+
+### Fontes
+
+Manrope (títulos) e Public Sans (corpo) via `next/font/google`, que as
+**auto-hospeda** no build. Não é detalhe: um `<link>` para o Google Fonts falharia
+no PWA offline do técnico, e ainda entregaria o layout em `system-ui` no
+primeiro paint. As famílias chegam ao Tailwind por variável CSS
+(`--fonte-titulo`, `--fonte-corpo`).
+
+### Grades e pontos de quebra
+
+| Tela | Celular | Desktop |
+|---|---|---|
+| App do técnico | coluna única, `max-w-md` | mesma coluna, centrada |
+| Dashboard | gaveta de navegação | barra lateral fixa (`lg:`) |
+| Tabelas | cada linha vira cartão | tabela (`md:`) |
+| KPIs | 1–2 colunas | 4 colunas (`xl:`) |
+
+**Tabela não rola na horizontal em celular.** Abaixo de `md` cada linha vira um
+cartão com o nome da coluna ao lado do valor — rolagem lateral esconde coluna, e
+a escondida costuma ser justamente a que importa. Por isso `Celula` recebe
+`rotulo` (nome da coluna, visível só no cartão) e `principal` (o valor que
+identifica a linha).
+
+**A barra lateral de 240px não cabe num celular de 375px.** Abaixo de `lg` ela
+vira gaveta, com fundo clicável, fechamento no Esc e ao navegar.
+
+### Acessibilidade
+
+- **Foco visível** em tudo que recebe teclado (`:focus-visible`, anel de 2px, e
+  lima sobre fundo verde para ter contraste). Antes não havia nenhum — navegar
+  por teclado era às cegas.
+- **Alvo de toque de 56px** nos controles do técnico (o mínimo do WCAG é 44px);
+  o dedo é de quem está de luva.
+- **Zoom liberado** (`maximumScale: 5`). Travar zoom é barreira que não se paga.
+- `prefers-reduced-motion` respeitado.
+- Áreas seguras do aparelho (`env(safe-area-inset-*)`): a barra de gestos do
+  Android comia o alvo de toque das abas.
+
+### Componentes
+
+`components/ui.tsx` concentra botão, campo, seleção, chip, cartão, KPI,
+**esqueleto de carregamento** e **estado vazio**. Esqueleto em vez de
+"Carregando…" porque a página não muda de altura quando o dado chega — nada pula
+sob o dedo de quem já estava tocando. Estado vazio sempre diz o que houve **e** o
+que fazer a seguir.
+
+O `select` desenha a própria seta: `appearance-none` sem seta deixava o campo
+com cara de input de texto que não abre nada.
+
+Números que mudam ao vivo usam `.tabular` (`font-variant-numeric: tabular-nums`),
+senão a coluna de peso dança a cada atualização.
+
+### Gráfico
+
+`components/grafico.tsx` desenha num sistema de coordenadas amplo (900×340) e
+escala por `viewBox`: o texto mantém proporção em qualquer largura, em vez de
+virar rabisco no desktop e letra gigante no celular. Tem alvo de toque generoso
+por ponto, destaque no hover/foco e legenda de início e fim.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.

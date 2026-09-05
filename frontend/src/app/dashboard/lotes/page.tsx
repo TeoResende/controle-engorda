@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
-import { Aviso, Cartao, Chip } from "@/components/ui";
+import { Cartao, Chip, Esqueleto, Vazio } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
 import { data as formatarData, gmd as formatarGmd, peso as formatarPeso } from "@/lib/formato";
 
@@ -48,30 +48,37 @@ export default function Lotes() {
 
       <Cartao>
         {!metricas ? (
-          <p className="text-sm text-verde/55">Carregando…</p>
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Esqueleto key={i} className="h-11 w-full" />
+            ))}
+          </div>
         ) : metricas.length === 0 ? (
-          <Aviso>Nenhum lote com animais ativos.</Aviso>
+          <Vazio
+            titulo="Nenhum lote com animais ativos"
+            descricao="Lotes agrupam os animais para acompanhar o desempenho por curral ou pasto."
+          />
         ) : (
           <Tabela colunas={["Lote", "Formado em", "Animais", "Peso médio", "GMD", "Status", ""]}>
             {metricas.map((l) => {
               const atencao = l.gmd_medio !== null && Number(l.gmd_medio) < GMD_META;
               return (
                 <Linha key={l.lote_id ?? l.nome}>
-                  <Celula className="font-bold">{l.nome}</Celula>
-                  <Celula>{formatarData(porNome.get(l.nome)?.data_formacao)}</Celula>
-                  <Celula>{l.animais}</Celula>
-                  <Celula>
+                  <Celula principal>{l.nome}</Celula>
+                  <Celula rotulo="Formado em">{formatarData(porNome.get(l.nome)?.data_formacao)}</Celula>
+                  <Celula rotulo="Animais">{l.animais}</Celula>
+                  <Celula rotulo="Peso médio" className="tabular">
                     {l.peso_medio === null ? "—" : `${formatarPeso(l.peso_medio)} kg`}
                   </Celula>
-                  <Celula>
+                  <Celula rotulo="GMD" className="tabular">
                     {l.gmd_medio === null ? "—" : `${formatarGmd(l.gmd_medio)} kg/dia`}
                   </Celula>
-                  <Celula>
+                  <Celula rotulo="Status">
                     <Chip tom={atencao ? "atencao" : "lima"}>
                       {atencao ? "Atenção" : "No prazo"}
                     </Chip>
                   </Celula>
-                  <Celula className="text-right">
+                  <Celula className="md:text-right">
                     <Link
                       href={`/dashboard/animais?lote=${l.lote_id ?? ""}`}
                       aria-label={`Ver animais do ${l.nome}`}

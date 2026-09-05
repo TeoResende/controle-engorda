@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Celula, Linha, Tabela } from "@/components/tabela";
-import { Aviso, Botao, Campo, Cartao, Chip, Selecao } from "@/components/ui";
+import { Aviso, Botao, Campo, Cartao, Chip, Esqueleto, Selecao } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
 import { data as formatarData } from "@/lib/formato";
 import { lerSessao } from "@/lib/sessao";
@@ -109,7 +109,14 @@ export default function Configuracoes() {
       <Cartao>
         <h2 className="font-titulo font-extrabold text-verde">Fazenda</h2>
         {!fazenda ? (
-          <p className="mt-3 text-sm text-verde/55">Carregando…</p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i}>
+                <Esqueleto className="h-3 w-20" />
+                <Esqueleto className="mt-2 h-4 w-32" />
+              </div>
+            ))}
+          </div>
         ) : (
           <dl className="mt-3 grid gap-4 sm:grid-cols-2">
             {(
@@ -184,11 +191,15 @@ export default function Configuracoes() {
                 <Selecao
                   rotulo="Papel"
                   name="papel"
-                  opcoes={["tecnico", "cliente", "admin"]}
+                  opcoes={[
+                    ["tecnico", "Técnico de campo"],
+                    ["cliente", "Cliente"],
+                    ["admin", "Administrador"],
+                  ]}
                   defaultValue="tecnico"
                 />
                 <div className="sm:col-span-2">
-                  <Botao type="submit" variante="destaque" disabled={ocupado}>
+                  <Botao type="submit" variante="destaque" carregando={ocupado}>
                     {ocupado ? "Adicionando…" : "Adicionar à fazenda"}
                   </Botao>
                 </div>
@@ -199,7 +210,11 @@ export default function Configuracoes() {
             {ok && <Aviso tom="sucesso">{ok}</Aviso>}
 
             {!membros ? (
-              <p className="text-sm text-verde/55">Carregando…</p>
+              <div className="flex flex-col gap-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Esqueleto key={i} className="h-11 w-full" />
+                ))}
+              </div>
             ) : (
               <Tabela colunas={["Nome", "E-mail", "Papel", "Situação", "Ações"]}>
                 {membros.map((m) => {
@@ -210,7 +225,7 @@ export default function Configuracoes() {
                   const intocavel = m.admin_master || m.id === meuId;
                   return (
                     <Linha key={m.id}>
-                      <Celula className="font-bold">
+                      <Celula principal>
                         {m.nome}
                         {m.admin_master && (
                           <span className="ml-2">
@@ -218,8 +233,10 @@ export default function Configuracoes() {
                           </span>
                         )}
                       </Celula>
-                      <Celula className="text-verde/70">{m.email}</Celula>
-                      <Celula>
+                      <Celula rotulo="E-mail" className="break-all text-verde/70">
+                        {m.email}
+                      </Celula>
+                      <Celula rotulo="Papel">
                         {intocavel ? (
                           ROTULO_PAPEL[m.papel]
                         ) : (
@@ -236,7 +253,7 @@ export default function Configuracoes() {
                                 `${m.nome} agora é ${ROTULO_PAPEL[e.target.value].toLowerCase()}.`,
                               )
                             }
-                            className="rounded-lg border border-verde/15 bg-white px-2 py-1.5 text-sm text-verde disabled:opacity-40"
+                            className="rounded-lg border border-borda bg-white px-2 py-1.5 text-sm text-verde disabled:opacity-40"
                           >
                             {PAPEIS.map((p) => (
                               <option key={p} value={p}>
@@ -246,12 +263,12 @@ export default function Configuracoes() {
                           </select>
                         )}
                       </Celula>
-                      <Celula>
+                      <Celula rotulo="Situação">
                         <Chip tom={m.ativo ? "lima" : "claro"}>
                           {m.ativo ? "Ativo" : "Removido"}
                         </Chip>
                       </Celula>
-                      <Celula>
+                      <Celula rotulo="Ações">
                         {intocavel ? (
                           <span className="text-xs text-verde/40">
                             {m.id === meuId ? "você" : "—"}

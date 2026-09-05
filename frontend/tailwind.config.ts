@@ -5,14 +5,19 @@ const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        // As variáveis vêm do next/font (app/layout.tsx). A pilha de reserva
+        // existe para o primeiro paint e para quando a fonte não carrega.
+        titulo: ["var(--fonte-titulo)", "system-ui", "sans-serif"],
+        corpo: ["var(--fonte-corpo)", "system-ui", "sans-serif"],
+      },
       colors: {
         verde: "#1E4B3B",
         lima: "#C6D400",
         fundo: "#F6F7F2",
-      },
-      fontFamily: {
-        titulo: ["Manrope", "system-ui", "sans-serif"],
-        corpo: ["'Public Sans'", "system-ui", "sans-serif"],
+        // Tons derivados, para não espalhar opacidade mágica pelo código.
+        "verde-claro": "#2C6B54",
+        borda: "#E4E8DF",
       },
     },
   },

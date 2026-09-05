@@ -66,7 +66,7 @@ export default function Inicio() {
       <div className="grid grid-cols-2 gap-3">
         <Link
           href="/tecnico/animal/novo"
-          className="flex flex-col gap-3 rounded-2xl border border-verde/8 bg-white px-4 py-4"
+          className="flex flex-col gap-3 rounded-2xl border border-borda bg-white px-4 py-4"
         >
           <Mais className="h-6 w-6 text-verde" />
           <span className="font-titulo text-sm font-bold text-verde">Novo animal</span>
@@ -74,7 +74,7 @@ export default function Inicio() {
 
         <Link
           href="/tecnico/fila"
-          className="relative flex flex-col gap-3 rounded-2xl border border-verde/8 bg-white px-4 py-4"
+          className="relative flex flex-col gap-3 rounded-2xl border border-borda bg-white px-4 py-4"
         >
           <Sincronizar className="h-6 w-6 text-verde" />
           <span className="font-titulo text-sm font-bold text-verde">Fila de sincronização</span>

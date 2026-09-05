@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { Brinco } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
-import { Aviso, Cartao, Chip, Kpi } from "@/components/ui";
+import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
 import {
   data as formatarData,
@@ -55,7 +55,17 @@ export default function DetalheAnimal() {
   }, [id]);
 
   if (erro) return <Aviso tom="erro">{erro}</Aviso>;
-  if (!dados) return <p className="py-10 text-sm text-verde/60">Carregando…</p>;
+
+  if (!dados) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Esqueleto className="h-4 w-40" />
+        <Esqueleto className="h-24 w-full rounded-2xl" />
+        <EsqueletoKpis />
+        <Esqueleto className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   const pontos: Ponto[] = dados.pesagens.map((p) => ({
     rotulo: formatarData(p.data).slice(0, 5),
@@ -148,26 +158,32 @@ export default function DetalheAnimal() {
       <Cartao>
         <h2 className="mb-2 font-titulo font-extrabold text-verde">Histórico de pesagens</h2>
         {dados.pesagens.length === 0 ? (
-          <p className="text-sm text-verde/55">Este animal ainda não foi pesado.</p>
+          <Vazio
+            titulo="Este animal ainda não foi pesado"
+            descricao="A primeira pesagem aparece aqui assim que o técnico registrar."
+          />
         ) : (
           <Tabela colunas={["Data", "Peso", "Variação", "Técnico", "Observação"]}>
             {[...dados.pesagens].reverse().map((p, i) => (
               <Linha key={`${p.data}-${i}`}>
-                <Celula>{formatarData(p.data)}</Celula>
-                <Celula className="font-bold">{formatarPeso(p.peso_kg)} kg</Celula>
+                <Celula principal>{formatarData(p.data)}</Celula>
+                <Celula rotulo="Peso" className="tabular font-bold">
+                  {formatarPeso(p.peso_kg)} kg
+                </Celula>
                 <Celula
-                  className={
+                  rotulo="Variação"
+                  className={`tabular font-bold ${
                     p.variacao === null
                       ? "text-verde/40"
                       : Number(p.variacao) >= 0
                         ? "text-emerald-700"
                         : "text-red-600"
-                  }
+                  }`}
                 >
                   {formatarVariacao(p.variacao)}
                 </Celula>
-                <Celula>{p.tecnico_nome ?? "—"}</Celula>
-                <Celula className="text-verde/80">
+                <Celula rotulo="Técnico">{p.tecnico_nome ?? "—"}</Celula>
+                <Celula rotulo="Observação" className="text-verde/80">
                   {p.tem_audio && <span className="mr-1 text-verde/45">🎙</span>}
                   {p.observacao_texto ?? "—"}
                 </Celula>

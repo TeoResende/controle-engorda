@@ -1,17 +1,23 @@
 "use client";
 
+import { useId, useState } from "react";
+
 /**
- * Gráficos em SVG, escritos à mão.
+ * Gráfico de linha em SVG, escrito à mão.
  *
- * Uma biblioteca de gráficos custaria ~100 KB no bundle para desenhar duas
- * linhas — e o dashboard precisa abrir rápido em conexão de fazenda.
+ * Uma biblioteca custaria ~100 KB de bundle para desenhar uma linha, e o
+ * dashboard precisa abrir rápido em conexão de fazenda.
+ *
+ * O desenho usa um sistema de coordenadas amplo (900×340) e escala por
+ * `viewBox`: assim o texto mantém proporção em qualquer largura, em vez de
+ * virar rabisco no desktop e letra gigante no celular.
  */
 
 export type Ponto = { rotulo: string; valor: number };
 
-const LARGURA = 320;
-const ALTURA = 150;
-const MARGEM = { topo: 12, direita: 8, baixo: 24, esquerda: 40 };
+const L = 900;
+const A = 340;
+const M = { topo: 24, direita: 24, baixo: 48, esquerda: 78 };
 
 function escalas(pontos: Ponto[]) {
   const valores = pontos.map((p) => p.valor);
@@ -23,29 +29,33 @@ function escalas(pontos: Ponto[]) {
   const baixo = min - folga;
   const alto = max + folga;
 
-  const larguraUtil = LARGURA - MARGEM.esquerda - MARGEM.direita;
-  const alturaUtil = ALTURA - MARGEM.topo - MARGEM.baixo;
+  const largura = L - M.esquerda - M.direita;
+  const altura = A - M.topo - M.baixo;
 
   return {
     baixo,
     alto,
     x: (i: number) =>
-      MARGEM.esquerda +
-      (pontos.length === 1 ? larguraUtil / 2 : (i / (pontos.length - 1)) * larguraUtil),
-    y: (v: number) => MARGEM.topo + alturaUtil - ((v - baixo) / (alto - baixo)) * alturaUtil,
+      M.esquerda + (pontos.length === 1 ? largura / 2 : (i / (pontos.length - 1)) * largura),
+    y: (v: number) => M.topo + altura - ((v - baixo) / (alto - baixo)) * altura,
   };
 }
 
 export function GraficoDeLinha({
   pontos,
   unidade = "kg",
+  altura = "h-56 sm:h-64",
 }: {
   pontos: Ponto[];
   unidade?: string;
+  altura?: string;
 }) {
+  const id = useId();
+  const [ativo, setAtivo] = useState<number | null>(null);
+
   if (pontos.length === 0) {
     return (
-      <p className="rounded-xl bg-white px-4 py-8 text-center text-sm text-verde/50">
+      <p className="rounded-xl bg-verde/4 px-4 py-10 text-center text-sm text-verde/50">
         Ainda não há pesagens para desenhar a curva.
       </p>
     );
@@ -53,56 +63,132 @@ export function GraficoDeLinha({
 
   const { x, y, baixo, alto } = escalas(pontos);
   const caminho = pontos.map((p, i) => `${i === 0 ? "M" : "L"} ${x(i)} ${y(p.valor)}`).join(" ");
-  const area = `${caminho} L ${x(pontos.length - 1)} ${ALTURA - MARGEM.baixo} L ${x(0)} ${ALTURA - MARGEM.baixo} Z`;
+  const area = `${caminho} L ${x(pontos.length - 1)} ${A - M.baixo} L ${x(0)} ${A - M.baixo} Z`;
+
+  // Com muitos pontos os rótulos se sobrepõem: mostra no máximo 6.
+  const passo = Math.max(1, Math.ceil(pontos.length / 6));
+  const primeiro = pontos[0];
+  const ultimo = pontos[pontos.length - 1];
+  const destaque = ativo !== null ? pontos[ativo] : null;
 
   return (
-    <div className="overflow-x-auto rounded-xl bg-white p-3">
-      <svg
-        viewBox={`0 0 ${LARGURA} ${ALTURA}`}
-        className="h-auto w-full"
-        role="img"
-        aria-label={`Curva de peso: de ${pontos[0].valor} a ${pontos[pontos.length - 1].valor} ${unidade}`}
-      >
-        {[alto, (alto + baixo) / 2, baixo].map((v) => (
-          <g key={v}>
-            <line
-              x1={MARGEM.esquerda}
-              x2={LARGURA - MARGEM.direita}
-              y1={y(v)}
-              y2={y(v)}
-              stroke="#1E4B3B"
-              strokeOpacity={0.08}
-            />
-            <text x={4} y={y(v) + 3} fontSize={8} fill="#1E4B3B" fillOpacity={0.5}>
-              {Math.round(v)}
-            </text>
-          </g>
-        ))}
+    <figure className="m-0">
+      <div className={`relative w-full ${altura}`}>
+        <svg
+          viewBox={`0 0 ${L} ${A}`}
+          preserveAspectRatio="none"
+          className="h-full w-full"
+          role="img"
+          aria-label={`Evolução de peso de ${primeiro.valor} a ${ultimo.valor} ${unidade}, ${pontos.length} pontos`}
+          onMouseLeave={() => setAtivo(null)}
+        >
+          <defs>
+            <linearGradient id={`area-${id}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#C6D400" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#C6D400" stopOpacity={0.04} />
+            </linearGradient>
+          </defs>
 
-        <path d={area} fill="#C6D400" fillOpacity={0.18} />
-        <path d={caminho} fill="none" stroke="#1E4B3B" strokeWidth={2} strokeLinejoin="round" />
+          {[alto, (alto + baixo) / 2, baixo].map((v) => (
+            <g key={v}>
+              <line
+                x1={M.esquerda}
+                x2={L - M.direita}
+                y1={y(v)}
+                y2={y(v)}
+                stroke="#1E4B3B"
+                strokeOpacity={0.1}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={M.esquerda - 12}
+                y={y(v) + 6}
+                fontSize={18}
+                textAnchor="end"
+                fill="#1E4B3B"
+                fillOpacity={0.45}
+              >
+                {Math.round(v)}
+              </text>
+            </g>
+          ))}
 
-        {pontos.map((p, i) => (
-          <circle key={p.rotulo + i} cx={x(i)} cy={y(p.valor)} r={3} fill="#1E4B3B" />
-        ))}
+          <path d={area} fill={`url(#area-${id})`} />
+          <path
+            d={caminho}
+            fill="none"
+            stroke="#1E4B3B"
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
 
-        {pontos.map((p, i) =>
-          // Com muitos pontos os rótulos se sobrepõem; mostra um a cada N.
-          i % Math.ceil(pontos.length / 5) === 0 || i === pontos.length - 1 ? (
-            <text
-              key={`r-${p.rotulo}-${i}`}
-              x={x(i)}
-              y={ALTURA - 8}
-              fontSize={8}
-              fill="#1E4B3B"
-              fillOpacity={0.6}
-              textAnchor="middle"
-            >
-              {p.rotulo}
-            </text>
-          ) : null,
+          {pontos.map((p, i) => (
+            <g key={`${p.rotulo}-${i}`}>
+              <circle
+                cx={x(i)}
+                cy={y(p.valor)}
+                r={ativo === i ? 9 : 5}
+                fill={ativo === i ? "#C6D400" : "#1E4B3B"}
+                stroke="#fff"
+                strokeWidth={2}
+              />
+              {/* Alvo generoso e invisível: acertar o ponto com o dedo. */}
+              <rect
+                x={x(i) - 28}
+                y={M.topo}
+                width={56}
+                height={A - M.topo - M.baixo}
+                fill="transparent"
+                onMouseEnter={() => setAtivo(i)}
+                onFocus={() => setAtivo(i)}
+                onBlur={() => setAtivo(null)}
+                tabIndex={0}
+                role="button"
+                aria-label={`${p.rotulo}: ${p.valor} ${unidade}`}
+              />
+            </g>
+          ))}
+
+          {pontos.map((p, i) =>
+            i % passo === 0 || i === pontos.length - 1 ? (
+              <text
+                key={`r-${p.rotulo}-${i}`}
+                x={x(i)}
+                y={A - 14}
+                fontSize={18}
+                fill="#1E4B3B"
+                fillOpacity={0.55}
+                textAnchor="middle"
+              >
+                {p.rotulo}
+              </text>
+            ) : null,
+          )}
+        </svg>
+
+        {destaque && (
+          <div
+            className="pointer-events-none absolute -top-1 rounded-lg bg-verde px-2.5 py-1.5 text-xs font-bold text-fundo shadow"
+            style={{
+              left: `${((x(ativo!) - M.esquerda) / (L - M.esquerda - M.direita)) * 100}%`,
+              transform: "translateX(-50%)",
+            }}
+          >
+            {destaque.rotulo}: {destaque.valor} {unidade}
+          </div>
         )}
-      </svg>
-    </div>
+      </div>
+
+      <figcaption className="mt-2 flex justify-between text-xs text-verde/45">
+        <span>
+          {primeiro.rotulo}: {primeiro.valor} {unidade}
+        </span>
+        <span>
+          {ultimo.rotulo}: {ultimo.valor} {unidade}
+        </span>
+      </figcaption>
+    </figure>
   );
 }

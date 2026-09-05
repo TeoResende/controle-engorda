@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Lupa, Seta } from "@/components/icones";
-import { Aviso, Cabecalho } from "@/components/ui";
+import { Cabecalho, Vazio } from "@/components/ui";
 import { db } from "@/lib/db";
 import { data as formatarData, peso as formatarPeso } from "@/lib/formato";
 
@@ -39,23 +39,26 @@ export default function Animais() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por brinco ou nome…"
-          className="min-h-[56px] w-full rounded-xl border border-verde/15 bg-white pl-11 pr-4 text-verde outline-none focus:border-verde placeholder:text-verde/35"
+          className="min-h-[56px] w-full rounded-xl border border-borda bg-white pl-11 pr-4 text-verde outline-none focus:border-verde placeholder:text-verde/35"
         />
       </div>
 
       {animais.length === 0 ? (
-        <Aviso>
-          {busca
-            ? "Nenhum animal com esse brinco ou nome."
-            : "O rebanho ainda não foi baixado. Conecte-se uma vez para guardar a cópia no aparelho."}
-        </Aviso>
+        <Vazio
+          titulo={busca ? "Nada encontrado" : "Rebanho ainda não baixado"}
+          descricao={
+            busca
+              ? `Nenhum animal com “${busca}”.`
+              : "Conecte-se uma vez para guardar a cópia do rebanho no aparelho — depois ela funciona sem sinal."
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-2">
           {animais.slice(0, 100).map((a) => (
             <li key={a.id}>
               <Link
                 href={`/tecnico/coleta?brinco=${encodeURIComponent(a.brinco)}`}
-                className="flex items-center justify-between rounded-xl border border-verde/8 bg-white px-4 py-3"
+                className="flex min-h-[64px] items-center justify-between rounded-xl border border-borda bg-white px-4 py-3 transition active:bg-verde/4"
               >
                 <div className="min-w-0">
                   <p className="font-titulo font-bold text-verde">

@@ -2,7 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #f6f7f2;
-  color: #1e4b3b;
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    /* O app do técnico tem cabeçalho fixo; sem isto, âncoras param embaixo dele. */
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    /* Área segura do aparelho: entalhe em cima, barra de gestos embaixo. */
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /*
+   * Foco visível em tudo que recebe teclado.
+   *
+   * `focus-visible` e não `focus`: o anel aparece para quem navega por teclado
+   * e não fica piscando a cada toque no celular. Sem isto era impossível saber
+   * onde se está sem enxergar o cursor.
+   */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid #1e4b3b;
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  /* Fundo lima escuro precisa de anel claro para ter contraste. */
+  .bg-verde :where(a, button):focus-visible,
+  .bg-lima:focus-visible {
+    outline-color: #c6d400;
+  }
+
+  /* Números tabulares: coluna de peso não “dança” ao atualizar. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* Respeita quem pediu menos animação no sistema. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }

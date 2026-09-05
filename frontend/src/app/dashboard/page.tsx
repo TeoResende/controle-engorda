@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
-import { Aviso, Cartao, Chip, Kpi } from "@/components/ui";
+import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
 import { gmd as formatarGmd, mesCurto, peso as formatarPeso } from "@/lib/formato";
 import { limparSessao } from "@/lib/sessao";
@@ -68,7 +68,16 @@ export default function Dashboard() {
   }
 
   if (erro) return <Aviso tom="erro">{erro}</Aviso>;
-  if (!dados) return <p className="py-10 text-sm text-verde/60">Carregando…</p>;
+
+  if (!dados) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Esqueleto className="h-8 w-48" />
+        <EsqueletoKpis />
+        <Esqueleto className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
 
   const pontos: Ponto[] = dados.serie.map((p) => ({
     rotulo: mesCurto(p.data),
@@ -91,7 +100,7 @@ export default function Dashboard() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar animal por brinco…"
-            className="w-full rounded-xl border border-verde/15 bg-white py-2.5 pl-9 pr-3 text-sm text-verde outline-none focus:border-verde placeholder:text-verde/35"
+            className="w-full rounded-xl border border-borda bg-white py-2.5 pl-9 pr-3 text-sm text-verde outline-none focus:border-verde placeholder:text-verde/35"
           />
         </form>
       </header>
@@ -126,7 +135,9 @@ export default function Dashboard() {
         <Cartao>
           <h2 className="font-titulo font-extrabold text-verde">Animais abaixo da meta</h2>
           {abaixoDaMeta.length === 0 ? (
-            <p className="mt-3 text-sm text-verde/55">Nenhum animal fora do esperado.</p>
+            <p className="mt-3 rounded-xl bg-lima/15 px-4 py-6 text-center text-sm text-verde/70">
+              Nenhum animal fora do esperado.
+            </p>
           ) : (
             <ul className="mt-3 flex flex-col gap-2">
               {abaixoDaMeta.slice(0, 8).map((a, i) => (
@@ -151,29 +162,32 @@ export default function Dashboard() {
       <Cartao>
         <h2 className="mb-2 font-titulo font-extrabold text-verde">Lotes ativos</h2>
         {dados.lotes.length === 0 ? (
-          <p className="text-sm text-verde/55">Nenhum lote com animais ativos.</p>
+          <Vazio
+            titulo="Nenhum lote com animais ativos"
+            descricao="Crie lotes para acompanhar o desempenho por grupo."
+          />
         ) : (
           <Tabela colunas={["Lote", "Animais", "GMD", "Status", ""]}>
             {dados.lotes.map((l) => {
               const atencao = l.gmd_medio !== null && Number(l.gmd_medio) < GMD_META;
               return (
                 <Linha key={l.lote_id ?? l.nome}>
-                  <Celula className="font-bold">{l.nome}</Celula>
-                  <Celula>{l.animais}</Celula>
-                  <Celula>
+                  <Celula principal>{l.nome}</Celula>
+                  <Celula rotulo="Animais">{l.animais}</Celula>
+                  <Celula rotulo="GMD" className="tabular">
                     {l.gmd_medio === null ? "—" : `${formatarGmd(l.gmd_medio)} kg/dia`}
                   </Celula>
-                  <Celula>
+                  <Celula rotulo="Status">
                     <Chip tom={atencao ? "atencao" : "lima"}>
                       {atencao ? "Atenção" : "No prazo"}
                     </Chip>
                   </Celula>
-                  <Celula className="text-right">
+                  <Celula className="md:text-right">
                     <Link
                       href={`/dashboard/animais?lote=${l.lote_id ?? ""}`}
                       aria-label={`Ver animais do ${l.nome}`}
                     >
-                      <Seta className="ml-auto h-4 w-4 text-verde/30" />
+                      <Seta className="ml-auto h-4 w-4 text-verde/30 transition hover:text-verde" />
                     </Link>
                   </Celula>
                 </Linha>

@@ -6,7 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
-import { Aviso, Cartao, Chip } from "@/components/ui";
+import { Cartao, Chip, Esqueleto, Vazio } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
 import { data as formatarData, peso as formatarPeso } from "@/lib/formato";
 
@@ -68,35 +68,46 @@ function Conteudo() {
               setPagina(0); // busca nova começa da primeira página
             }}
             placeholder="Buscar por brinco…"
-            className="w-full rounded-xl border border-verde/15 bg-white py-2.5 pl-9 pr-3 text-sm text-verde outline-none focus:border-verde placeholder:text-verde/35"
+            className="w-full rounded-xl border border-borda bg-white py-2.5 pl-9 pr-3 text-sm text-verde outline-none focus:border-verde placeholder:text-verde/35"
           />
         </div>
       </header>
 
       <Cartao>
         {!dados ? (
-          <p className="text-sm text-verde/55">Carregando…</p>
+          <div className="flex flex-col gap-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Esqueleto key={i} className="h-11 w-full" />
+            ))}
+          </div>
         ) : dados.itens.length === 0 ? (
-          <Aviso>Nenhum animal encontrado.</Aviso>
+          <Vazio
+            titulo="Nenhum animal encontrado"
+            descricao={
+              busca
+                ? `Nada com “${busca}”. Confira o número do brinco.`
+                : "Os animais aparecem aqui assim que forem cadastrados."
+            }
+          />
         ) : (
           <>
             <Tabela colunas={["Brinco", "Nome", "Raça", "Último peso", "Status", ""]}>
               {dados.itens.map((a) => (
                 <Linha key={a.id}>
-                  <Celula className="font-bold">{a.brinco}</Celula>
-                  <Celula>{a.nome ?? "—"}</Celula>
-                  <Celula>{a.raca ?? "—"}</Celula>
-                  <Celula>
+                  <Celula principal>{a.brinco}</Celula>
+                  <Celula rotulo="Nome">{a.nome ?? "—"}</Celula>
+                  <Celula rotulo="Raça">{a.raca ?? "—"}</Celula>
+                  <Celula rotulo="Último peso" className="tabular">
                     {a.ultimo_peso
                       ? `${formatarPeso(a.ultimo_peso)} kg · ${formatarData(a.ultima_pesagem)}`
                       : "—"}
                   </Celula>
-                  <Celula>
+                  <Celula rotulo="Status">
                     <Chip tom={a.status === "ativo" ? "lima" : "claro"}>
                       {a.status[0].toUpperCase() + a.status.slice(1)}
                     </Chip>
                   </Celula>
-                  <Celula className="text-right">
+                  <Celula className="md:text-right">
                     <Link href={`/dashboard/animal/${a.id}`} aria-label={`Abrir ${a.brinco}`}>
                       <Seta className="ml-auto h-4 w-4 text-verde/30" />
                     </Link>

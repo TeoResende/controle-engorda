@@ -38,7 +38,7 @@ export default function MaisOpcoes() {
         <li>
           <Link
             href="/tecnico/fila"
-            className="flex items-center justify-between rounded-xl border border-verde/8 bg-white px-4 py-4"
+            className="flex items-center justify-between rounded-xl border border-borda bg-white px-4 py-4"
           >
             <span className="flex items-center gap-3">
               <Sincronizar className="h-5 w-5 text-verde" />
@@ -57,7 +57,7 @@ export default function MaisOpcoes() {
         <li>
           <Link
             href="/tecnico/gravar"
-            className="flex items-center justify-between rounded-xl border border-verde/8 bg-white px-4 py-4"
+            className="flex items-center justify-between rounded-xl border border-borda bg-white px-4 py-4"
           >
             <span className="flex items-center gap-3">
               <Brinco className="h-5 w-5 text-verde" />

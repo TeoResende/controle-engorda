@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
 
-import { Aviso, Botao, Cabecalho, Cartao } from "@/components/ui";
+import { Aviso, Botao, Cabecalho, Vazio } from "@/components/ui";
 import { db } from "@/lib/db";
 import { peso as formatarPeso } from "@/lib/formato";
 import { sincronizarTudo } from "@/lib/sync";
@@ -55,7 +55,7 @@ export default function Fila() {
             <li
               key={p.id}
               className={`rounded-xl border px-4 py-3 ${
-                p.ultimo_erro ? "border-red-200 bg-red-50" : "border-verde/8 bg-white"
+                p.ultimo_erro ? "border-red-200 bg-red-50" : "border-borda bg-white"
               }`}
             >
               <div className="flex items-center justify-between">
@@ -82,18 +82,16 @@ export default function Fila() {
         </Aviso>
       )}
 
-      <Botao onClick={sincronizarAgora} disabled={sincronizando}>
+      <Botao onClick={sincronizarAgora} carregando={sincronizando}>
         {sincronizando ? "Sincronizando…" : "Sincronizar agora"}
       </Botao>
       {resultado && <Aviso>{resultado}</Aviso>}
 
       {fila.length === 0 && (
-        <Cartao>
-          <p className="text-sm text-verde/70">
-            Pesagens ficam guardadas no aparelho até o servidor confirmar o
-            recebimento. Só então a cópia local é apagada.
-          </p>
-        </Cartao>
+        <Vazio
+          titulo="Fila vazia"
+          descricao="Pesagens ficam guardadas no aparelho até o servidor confirmar o recebimento. Só então a cópia local é apagada."
+        />
       )}
     </main>
   );
