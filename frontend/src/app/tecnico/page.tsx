@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { Brinco, Mais, Sincronizar } from "@/components/icones";
-import { Cartao } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
 import { db, gravarMeta, lerMeta } from "@/lib/db";
+import { contarODia, lerRebanhoEFila } from "@/lib/pesados-hoje";
 import { identidadeGuardada, ROTULO_PAPEL, type Identidade } from "@/lib/sessao-usuario";
 
 type ResumoDoDia = { pesadas_hoje: number; lote_ativo: string | null };
@@ -17,6 +17,14 @@ export default function Inicio() {
   const [identidade, setIdentidade] = useState<Identidade | null>(null);
   const [hoje, setHoje] = useState<ResumoDoDia | null>(null);
   const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
+
+  // Contagem do dia calculada no aparelho: funciona sem sinal e é a mesma que a
+  // tela de animais mostra — dois números diferentes para a mesma pergunta
+  // fariam o técnico duvidar dos dois.
+  const contagem = useLiveQuery(async () => {
+    const { animais, fila } = await lerRebanhoEFila();
+    return contarODia(animais, fila);
+  }, [], null);
 
   useEffect(() => {
     void identidadeGuardada().then((i) => i && setIdentidade(i));
@@ -87,20 +95,30 @@ export default function Inicio() {
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-verde/50">Hoje</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-verde/50">
+          Hoje{hoje?.lote_ativo ? ` · ${hoje.lote_ativo}` : ""}
+        </h2>
         <div className="grid grid-cols-2 gap-3">
-          <Cartao className="p-4">
+          <Link
+            href="/tecnico/animais"
+            className="rounded-2xl border border-borda bg-lima/20 p-4"
+          >
             <p className="font-titulo text-3xl font-extrabold text-verde">
-              {hoje?.pesadas_hoje ?? "—"}
+              {contagem?.pesados ?? "—"}
             </p>
             <p className="mt-0.5 text-xs text-verde/60">animais pesados</p>
-          </Cartao>
-          <Cartao className="p-4">
-            <p className="font-titulo text-lg font-extrabold text-verde">
-              {hoje?.lote_ativo ?? "—"}
+          </Link>
+          <Link
+            href="/tecnico/animais"
+            className="rounded-2xl border border-borda bg-white p-4"
+          >
+            <p className="font-titulo text-3xl font-extrabold text-verde">
+              {contagem?.faltam ?? "—"}
             </p>
-            <p className="mt-0.5 text-xs text-verde/60">lote ativo</p>
-          </Cartao>
+            <p className="mt-0.5 text-xs text-verde/60">
+              {contagem?.faltam === 0 ? "tudo pesado" : "faltam pesar"}
+            </p>
+          </Link>
         </div>
       </section>
     </main>

@@ -341,6 +341,26 @@ não escala para centenas de animais).
 Coleta e cadastro rodam **sem a moldura** (barra superior e abas): são telas de
 tarefa, e o técnico está com uma mão no celular e outra no animal.
 
+### Conferência do dia
+
+`/tecnico/animais` separa o rebanho entre **quem falta** (em cima) e **quem já
+foi pesado hoje** (embaixo, em verde, com um separador). A ordem importa mais
+que a cor: o técnico rola a lista com o polegar enquanto segura o celular, e o
+que ele procura é o que ainda não fez. Dois contadores no topo — *pesados hoje*
+e *faltam* — respondem "acabei?" sem contar linha por linha.
+
+"Pesado hoje" sai de **duas fontes**, e as duas importam (`lib/pesados-hoje.ts`):
+
+- a **fila local**, com o que acabou de ser registrado e ainda não subiu —
+  ignorá-la faria o animal reaparecer como pendente logo depois de pesado, que é
+  o pior erro possível numa tela de conferência;
+- o `ultima_pesagem` da **cópia do rebanho**, que cobre o que já sincronizou,
+  inclusive pesagem feita por outro técnico no mesmo dia.
+
+Tudo calculado no aparelho, então funciona sem sinal — e a tela inicial usa a
+mesma função, porque dois números diferentes para a mesma pergunta fariam o
+técnico duvidar dos dois.
+
 **Cliente** (barra lateral: Visão geral · Animais · Lotes · Configurações)
 
 `/dashboard` · `/dashboard/animais` (busca e paginação) · `/dashboard/lotes` ·
