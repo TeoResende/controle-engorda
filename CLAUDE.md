@@ -457,6 +457,34 @@ aponta para o endereço da API. Confundir os dois transforma qualquer falha de
 rota em "você está sem internet", que é o pior diagnóstico possível: manda o
 usuário mexer no lugar errado. Coberto por `frontend/testes/api.test.ts`.
 
+### Como testar offline (o que funciona e o que não)
+
+| Ação | Sem sinal |
+|---|---|
+| Abrir o app | **sim** — Service Worker com o app shell |
+| Ler tag NFC | sim |
+| Digitar o brinco | sim |
+| Ver de que animal é o brinco, raça, porte e último peso | sim — cópia local, baixada no login |
+| Ver as pesagens que ele mesmo fez hoje | sim — vêm da fila local |
+| Registrar peso | sim — vai para a fila no IndexedDB |
+| Gravar observação em áudio | sim — o áudio viaja junto na fila |
+| Ver as últimas pesagens do servidor | não — a lista avisa e fica vazia |
+| **Cadastrar animal novo** | **não** |
+| Primeiro login | não |
+| Dashboard do cliente | não (sem Service Worker, de propósito) |
+
+**Dois pré-requisitos, e sem eles o teste não prova nada:**
+
+1. **HTTPS.** Sem contexto seguro o Service Worker não registra e o app
+   simplesmente não abre offline (ver 8.3).
+2. **Modo produção.** Em `next dev` os chunks mudam a cada compilação e o HMR
+   abre um websocket que falha sem rede — "abrir em modo avião" não testa o que
+   o técnico vai usar.
+
+Ao voltar o sinal, a sincronização dispara **sozinha** em três momentos: no
+evento `online`, ao abrir o app e depois de cada peso salvo. Não existe botão a
+apertar — o da tela da fila é só para quem quer forçar.
+
 ### Como testar no celular Android
 
 1. Suba o frontend em modo produção — em `next dev` os chunks mudam a cada

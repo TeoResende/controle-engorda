@@ -29,9 +29,16 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
   // dashboard do cliente fica de fora — lá cache agressivo só atrapalharia.
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js", { scope: "/tecnico" }).catch(() => {
-      // Sem HTTPS o registro falha; o app segue, só não abre offline.
-    });
+    navigator.serviceWorker
+      .register("/sw.js", { scope: "/tecnico" })
+      .then(() => {
+        // Reaquece o cache assim que há sinal: telas novas de um deploy
+        // recente entram antes de o técnico voltar para o curral.
+        if (navigator.onLine) navigator.serviceWorker.ready.then((r) => r.active?.postMessage("reaquecer"));
+      })
+      .catch(() => {
+        // Sem HTTPS o registro falha; o app segue, só não abre offline.
+      });
   }, []);
 
   useEffect(() => {
