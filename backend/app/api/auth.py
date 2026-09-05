@@ -6,12 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.db import get_session
-from app.core.deps import CtxDep
+from app.core.deps import CtxDep, SessaoGlobalDep
 from app.core.security import (
     TokenInvalido,
     criar_token,
     decodificar_token,
+    hash_senha,
     verificar_senha,
 )
 from app.models import Fazenda, Papel, Usuario, UsuarioFazenda
@@ -22,6 +22,7 @@ from app.schemas import (
     RefreshRequest,
     TokenResponse,
     TrocarFazendaRequest,
+    TrocarSenhaRequest,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -122,7 +123,7 @@ async def _escolher_fazenda(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     dados: LoginRequest,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> TokenResponse:
     usuario = await session.scalar(
         select(Usuario).where(
@@ -141,7 +142,7 @@ async def login(
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
     dados: RefreshRequest,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> TokenResponse:
     try:
         payload = decodificar_token(dados.refresh_token, tipo_esperado="refresh")
@@ -173,7 +174,7 @@ async def refresh(
 async def trocar_fazenda(
     dados: TrocarFazendaRequest,
     ctx: CtxDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> TokenResponse:
     """Emite um novo par de tokens para outra fazenda do mesmo usuário.
 
@@ -184,8 +185,34 @@ async def trocar_fazenda(
     return _par_de_tokens(ctx.usuario, fazenda_id, papel)
 
 
+@router.post("/senha", status_code=status.HTTP_204_NO_CONTENT)
+async def trocar_senha(
+    dados: TrocarSenhaRequest,
+    ctx: CtxDep,
+    session: SessaoGlobalDep,
+) -> None:
+    """Troca a própria senha.
+
+    Os tokens já emitidos continuam valendo até expirar — trocar a senha não
+    derruba a sessão do técnico que está no curral. Revogação imediata exigiria
+    uma denylist em Redis, o mesmo custo já anotado para o token de 12h.
+    """
+    if not verificar_senha(dados.senha_atual, ctx.usuario.senha_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Senha atual incorreta"
+        )
+    if dados.senha_atual == dados.senha_nova:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="A nova senha é igual à atual"
+        )
+
+    usuario = await session.get(Usuario, ctx.usuario.id)
+    usuario.senha_hash = hash_senha(dados.senha_nova)
+    await session.commit()
+
+
 @router.get("/eu", response_model=EuResponse)
-async def eu(ctx: CtxDep, session: Annotated[AsyncSession, Depends(get_session)]) -> EuResponse:
+async def eu(ctx: CtxDep, session: SessaoGlobalDep) -> EuResponse:
     if ctx.master:
         fazendas = [
             FazendaDoUsuario(fazenda_id=f.id, nome=f.nome, papel=Papel.admin)

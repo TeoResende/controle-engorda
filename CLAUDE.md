@@ -76,7 +76,7 @@ pesagens(id [uuid gerado no celular], fazenda_id, animal_id, data,
          coletado_em, sincronizado_em)
 ```
 
-**Multi-tenant em duas camadas**: (1) toda query no FastAPI passa por uma dependency que injeta `fazenda_id` a partir do token — nunca manual por endpoint; (2) Postgres Row-Level Security como segunda barreira, a ativar antes de colocar fazendas reais em produção (não bloqueia o desenvolvimento do MVP).
+**Multi-tenant em duas camadas**, ambas ativas: (1) toda query no FastAPI passa por uma dependency que injeta `fazenda_id` a partir do token — nunca manual por endpoint; (2) Postgres Row-Level Security como segunda barreira — ver seção 8.8.
 
 ## 4. Autenticação
 
@@ -735,6 +735,64 @@ folha de estilo de impressão: o motor de PDF do navegador é melhor que
 WeasyPrint, não pesa a imagem do backend com Cairo/Pango, e a pessoa escolhe o
 papel. No papel, a tabela volta a ser tabela mesmo onde a tela vira cartão.
 
+## 8.8. Row-Level Security e backup (M10)
+
+### A RLS só vale com papel restrito
+
+**Superusuário do Postgres ignora políticas de linha, inclusive com `FORCE`.**
+Enquanto a aplicação usava o usuário dono do banco — que o Docker cria como
+superusuário — as políticas existiam e não protegiam nada: 24 animais visíveis
+sem tenant nenhum declarado. É um jeito silencioso de ter segurança de mentira.
+
+Por isso há dois papéis: `POSTGRES_USER` (administrador, para migrations, seed e
+backup) e `POSTGRES_APP_USER` (restrito, com que a aplicação fala). O papel é
+criado pela própria migration, com `ALTER DEFAULT PRIVILEGES` para que tabelas
+de migrations futuras já nasçam acessíveis.
+
+Há um teste que falha se o papel da aplicação virar superusuário.
+
+### Como o tenant chega ao banco
+
+`SessaoDep` chama `fixar_tenant()`, que anota a fazenda na sessão; um ouvinte de
+`after_begin` reaplica o valor **a cada transação nova**. Isso não é preciosismo:
+`set_config(..., true)` vale só dentro da transação, então depois de um `commit`
+a transação seguinte nascia sem tenant — o endpoint gravava e, ao reler o que
+gravou, não encontrava mais nada.
+
+Sem tenant declarado, **nada é visível**. Falha fechada, que é como uma barreira
+de segurança deve falhar.
+
+### As três saídas legítimas
+
+`SessaoGlobalDep` desliga a RLS, e só onde a operação é global por natureza:
+login (precisa achar vínculos antes de haver fazenda escolhida), primeiro acesso
+e a visão de dono do SaaS do admin master. Mais os jobs do worker e o seed.
+**Endpoint novo que use isso precisa de justificativa escrita** — é a porta que
+contorna o isolamento.
+
+Para trechos curtos existe `visao_global(session)`. Ele nasceu de um susto real:
+a verificação "esta pessoa também atende outra fazenda?", que protege a
+redefinição de senha, contava zero sob a RLS e **passava em silêncio**. Pergunta
+que precisa atravessar tenants tem que dizer isso explicitamente.
+
+### Backup
+
+`./scripts/backup.sh` — dump do Postgres em formato custom mais os áudios do
+MinIO, com retenção de 30 dias. **O dump é verificado com `pg_restore --list`
+antes de ser aceito**: dump que não abre não é backup, e a verificação custa
+segundos.
+
+`./scripts/restaurar.sh <arquivo.dump>` — restaura, exigindo confirmação
+digitada e parando backend e worker antes.
+
+No cron:
+
+```
+0 3 * * * cd /caminho/do/projeto && ./scripts/backup.sh >> volumes/backup.log 2>&1
+```
+
+Testado de ponta a ponta: 126 pesagens antes, 126 depois, RLS e papéis intactos.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -751,7 +809,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M7** — gravação, upload e transcrição de áudio (104 testes)
 - [x] **M8** — dashboard do cliente: KPIs, curva, lotes e alertas (116 testes)
 - [ ] M9 — deploy VPS
-- [ ] M10 — hardening
+- [x] **M10** — Row-Level Security, papel restrito e backup verificado (159 testes)
 
 ### Verificar o frontend sem quebrar o servidor de desenvolvimento
 

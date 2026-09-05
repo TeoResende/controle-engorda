@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { Brinco, Seta, Sincronizar } from "@/components/icones";
 import { DiagnosticoOffline } from "@/components/diagnostico-offline";
+import { TrocarSenha } from "@/components/trocar-senha";
 import { Cabecalho, Cartao } from "@/components/ui";
 import { db, lerMeta } from "@/lib/db";
 import { limparSessao } from "@/lib/sessao";
@@ -68,6 +69,8 @@ export default function MaisOpcoes() {
           </Link>
         </li>
       </ul>
+
+      <TrocarSenha />
 
       <DiagnosticoOffline />
 

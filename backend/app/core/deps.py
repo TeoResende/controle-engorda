@@ -14,7 +14,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.db import fixar_tenant, get_session, liberar_tenant
 from app.core.security import TokenInvalido, decodificar_token
 from app.models import Papel, Usuario
 
@@ -127,6 +127,10 @@ async def sessao_fazenda(
     ctx: Annotated[Contexto, Depends(usuario_atual)],
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> SessaoFazenda:
+    # Segunda barreira: a partir daqui o próprio Postgres só enxerga as linhas
+    # desta fazenda. Se um filtro da aplicação falhar, a consulta volta vazia em
+    # vez de devolver dado de outro cliente.
+    await fixar_tenant(session, ctx.fazenda_id)
     return SessaoFazenda(session, ctx.fazenda_id)
 
 
@@ -146,8 +150,37 @@ def exigir_papel(*papeis: Papel):
     return verificar
 
 
+async def sessao_do_tenant(
+    ctx: Annotated[Contexto, Depends(usuario_atual)],
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AsyncSession:
+    """Sessão crua, com a RLS apontada para a fazenda do token.
+
+    Para os poucos endpoints que precisam da sessão direta — gestão de membros,
+    dados da própria fazenda — sem abrir mão da segunda barreira.
+    """
+    await fixar_tenant(session, ctx.fazenda_id)
+    return session
+
+
+async def sessao_global(
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> AsyncSession:
+    """Sessão com a RLS desligada, para operações legitimamente sem tenant.
+
+    São poucas e todas conhecidas: login (que precisa achar os vínculos antes de
+    haver fazenda escolhida), primeiro acesso, e a visão de dono do SaaS do
+    admin master. **Qualquer endpoint novo que use isto precisa de justificativa
+    escrita** — é a porta que contorna o isolamento.
+    """
+    await liberar_tenant(session)
+    return session
+
+
 CtxDep = Annotated[Contexto, Depends(usuario_atual)]
 SessaoDep = Annotated[SessaoFazenda, Depends(sessao_fazenda)]
+SessaoTenantDep = Annotated[AsyncSession, Depends(sessao_do_tenant)]
+SessaoGlobalDep = Annotated[AsyncSession, Depends(sessao_global)]
 
 
 # Perfis de acesso usados pelos routers de cadastro (M3):

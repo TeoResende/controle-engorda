@@ -10,15 +10,20 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.db import get_session
-from app.core.deps import AdminDep
+from app.core.deps import AdminDep, SessaoTenantDep
+from app.core.db import visao_global
 from app.core.security import hash_senha
 from app.models import Usuario, UsuarioFazenda
-from app.schemas import MembroAtualizar, MembroCriar, MembroResponse
+from app.schemas import (
+    MembroAtualizar,
+    MembroCriar,
+    MembroResponse,
+    RedefinirSenhaRequest,
+)
 
 router = APIRouter(prefix="/membros", tags=["membros"])
 
@@ -53,7 +58,7 @@ async def _vinculo(session: AsyncSession, fazenda_id, usuario_id) -> UsuarioFaze
 @router.get("", response_model=list[MembroResponse])
 async def listar(
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
     incluir_inativos: Annotated[bool, Query(description="Traz também os removidos")] = False,
 ) -> list[MembroResponse]:
     stmt = (
@@ -70,7 +75,7 @@ async def listar(
 async def criar(
     dados: MembroCriar,
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
 ) -> MembroResponse:
     email = dados.email.lower()
     usuario = await session.scalar(select(Usuario).where(Usuario.email == email))
@@ -109,7 +114,7 @@ async def atualizar_papel(
     usuario_id: uuid.UUID,
     dados: MembroAtualizar,
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
 ) -> MembroResponse:
     vinculo = await _vinculo(session, ctx.fazenda_id, usuario_id)
     if vinculo is None:
@@ -134,11 +139,60 @@ async def atualizar_papel(
     return _resposta(vinculo)
 
 
+@router.post("/{usuario_id}/senha", status_code=status.HTTP_204_NO_CONTENT)
+async def redefinir_senha(
+    usuario_id: uuid.UUID,
+    dados: RedefinirSenhaRequest,
+    ctx: AdminDep,
+    session: SessaoTenantDep,
+) -> None:
+    """Redefine a senha de um membro que esqueceu a dele.
+
+    **Só vale para quem atende exclusivamente esta fazenda.** Redefinir senha é
+    tomar a conta: quem faz isso passa a poder entrar como a pessoa. Se ela
+    também trabalha em outra fazenda, o admin daqui estaria ganhando acesso a
+    dados de lá — por isso, nesse caso, só um admin master pode.
+    """
+    vinculo = await _vinculo(session, ctx.fazenda_id, usuario_id)
+    if vinculo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro não encontrado")
+
+    if vinculo.usuario.admin_master and not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Só um admin master pode redefinir a senha de outro admin master",
+        )
+
+    if not ctx.master:
+        # A pergunta é justamente sobre o que está FORA desta fazenda: sob a
+        # RLS a contagem voltaria zero sempre, e esta verificação de segurança
+        # passaria em silêncio.
+        async with visao_global(session):
+            outras = await session.scalar(
+                select(func.count(UsuarioFazenda.id)).where(
+                    UsuarioFazenda.usuario_id == usuario_id,
+                    UsuarioFazenda.fazenda_id != ctx.fazenda_id,
+                    UsuarioFazenda.desativado_em.is_(None),
+                )
+            )
+        if outras:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "Esta pessoa também atende outra fazenda. Redefinir a senha daria "
+                    "acesso aos dados de lá — peça a um admin master."
+                ),
+            )
+
+    vinculo.usuario.senha_hash = hash_senha(dados.senha_nova)
+    await session.commit()
+
+
 @router.post("/{usuario_id}/reativar", response_model=MembroResponse)
 async def reativar(
     usuario_id: uuid.UUID,
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
 ) -> MembroResponse:
     """Devolve o acesso a quem tinha saído da fazenda.
 
@@ -158,7 +212,7 @@ async def reativar(
 async def desativar(
     usuario_id: uuid.UUID,
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
 ) -> None:
     """Tira o membro desta fazenda desativando o vínculo.
 

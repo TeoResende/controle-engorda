@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Celula, Linha, Tabela } from "@/components/tabela";
+import { TrocarSenha } from "@/components/trocar-senha";
 import { Aviso, Botao, Campo, Cartao, Chip, Esqueleto, Selecao } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
 import { data as formatarData } from "@/lib/formato";
@@ -78,6 +79,28 @@ export default function Configuracoes() {
     }
   }
 
+  async function redefinirSenha(membro: Membro) {
+    // Redefinir senha é tomar a conta de alguém. A confirmação existe para que
+    // nunca seja um clique acidental na tabela.
+    const nova = window.prompt(
+      `Nova senha para ${membro.nome} (mínimo 8 caracteres).\n\nAvise a pessoa: ela pode trocar depois em Configurações.`,
+    );
+    if (!nova) return;
+    if (nova.length < 8) {
+      setErro("A senha precisa ter ao menos 8 caracteres.");
+      return;
+    }
+
+    await executar(
+      () =>
+        apiAuth(`/membros/${membro.id}/senha`, {
+          method: "POST",
+          body: JSON.stringify({ senha_nova: nova }),
+        }),
+      `Senha de ${membro.nome} redefinida. Passe a nova senha para ela.`,
+    );
+  }
+
   async function convidar(evento: React.FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const campos = new FormData(evento.currentTarget);
@@ -105,6 +128,8 @@ export default function Configuracoes() {
         <h1 className="font-titulo text-2xl font-extrabold text-verde">Configurações</h1>
         <p className="text-sm text-verde/60">Dados da fazenda e quem tem acesso</p>
       </header>
+
+      <TrocarSenha />
 
       <Cartao>
         <h2 className="font-titulo font-extrabold text-verde">Fazenda</h2>
@@ -274,18 +299,27 @@ export default function Configuracoes() {
                             {m.id === meuId ? "você" : "—"}
                           </span>
                         ) : m.ativo ? (
-                          <button
-                            disabled={ocupado}
-                            onClick={() =>
-                              executar(
-                                () => apiAuth(`/membros/${m.id}`, { method: "DELETE" }),
-                                `${m.nome} não tem mais acesso a esta fazenda. Nada foi apagado.`,
-                              )
-                            }
-                            className="text-sm font-bold text-red-600 disabled:opacity-40"
-                          >
-                            Remover
-                          </button>
+                          <span className="flex flex-wrap justify-end gap-3 md:justify-start">
+                            <button
+                              disabled={ocupado}
+                              onClick={() => redefinirSenha(m)}
+                              className="text-sm font-bold text-verde disabled:opacity-40"
+                            >
+                              Nova senha
+                            </button>
+                            <button
+                              disabled={ocupado}
+                              onClick={() =>
+                                executar(
+                                  () => apiAuth(`/membros/${m.id}`, { method: "DELETE" }),
+                                  `${m.nome} não tem mais acesso a esta fazenda. Nada foi apagado.`,
+                                )
+                              }
+                              className="text-sm font-bold text-red-600 disabled:opacity-40"
+                            >
+                              Remover
+                            </button>
+                          </span>
                         ) : (
                           <button
                             disabled={ocupado}

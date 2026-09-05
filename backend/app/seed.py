@@ -15,7 +15,8 @@ from decimal import Decimal
 
 from sqlalchemy import delete, select
 
-from app.core.db import SessionLocal
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from app.core.config import settings
 from app.core.security import hash_senha
 from app.models import (
     Animal,
@@ -68,7 +69,12 @@ async def semear() -> None:
     random.seed(42)  # seed fixa: o mesmo comando gera sempre os mesmos números
     hoje = date.today()
 
-    async with SessionLocal() as session:
+    # Conexão administrativa: o seed cria dados de várias fazendas de uma vez, e
+    # a RLS — que existe justamente para impedir isso — barraria a aplicação.
+    engine = create_async_engine(settings.database_url_admin)
+    fabrica = async_sessionmaker(engine, expire_on_commit=False)
+
+    async with fabrica() as session:
         if "--reset" in sys.argv:
             await limpar(session)
 
@@ -184,6 +190,8 @@ async def semear() -> None:
                         total_pesagens += 1
 
         await session.commit()
+
+    await engine.dispose()
 
     print(
         f"Seed pronto: 2 fazendas, 5 usuários, {total_animais} animais, "

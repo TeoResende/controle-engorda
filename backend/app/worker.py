@@ -12,7 +12,7 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.db import SessionLocal
+from app.core.db import SessionLocal, liberar_tenant
 from app.core import armazenamento
 from app.models import Pesagem, StatusTranscricao
 from app.transcricao import transcrever
@@ -36,6 +36,9 @@ async def transcrever_audio(ctx: dict, pesagem_id: str) -> str:
     fabrica = ctx.get("sessao_factory", SessionLocal)
 
     async with fabrica() as sessao:
+        # O job recebe só o id da pesagem e atende todas as fazendas — não há
+        # tenant a fixar. É uma das poucas operações legitimamente globais.
+        await liberar_tenant(sessao)
         pesagem = await sessao.scalar(
             select(Pesagem).where(Pesagem.id == uuid.UUID(pesagem_id))
         )

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
+from app.core.deps import SessaoGlobalDep
 from app.core.security import hash_senha
 from app.models import Fazenda, Papel, Usuario, UsuarioFazenda
 from app.schemas import PrimeiroAcessoRequest, SetupStatusResponse, TokenResponse
@@ -27,7 +27,7 @@ async def _existe_usuario(session: AsyncSession) -> bool:
 
 @router.get("/status", response_model=SetupStatusResponse)
 async def status_da_instalacao(
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> SetupStatusResponse:
     """Rota pública, sem token — o frontend consulta antes da tela de login para
     decidir se manda o visitante para o cadastro do primeiro usuário."""
@@ -39,7 +39,7 @@ async def status_da_instalacao(
 )
 async def primeiro_acesso(
     dados: PrimeiroAcessoRequest,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> TokenResponse:
     """Cria o primeiro admin master e, opcionalmente, a primeira fazenda.
 

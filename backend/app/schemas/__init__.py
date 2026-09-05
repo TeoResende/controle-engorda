@@ -10,9 +10,11 @@ from app.schemas.auth import (
     LoginRequest,
     RefreshRequest,
     PrimeiroAcessoRequest,
+    RedefinirSenhaRequest,
     SetupStatusResponse,
     TokenResponse,
     TrocarFazendaRequest,
+    TrocarSenhaRequest,
     UsuarioResponse,
 )
 from app.schemas.comum import Pagina
@@ -61,9 +63,11 @@ __all__ = [
     "RespostaLote",
     "ResultadoEnvio",
     "PrimeiroAcessoRequest",
+    "RedefinirSenhaRequest",
     "SetupStatusResponse",
     "RefreshRequest",
     "TokenResponse",
     "TrocarFazendaRequest",
+    "TrocarSenhaRequest",
     "UsuarioResponse",
 ]

@@ -6,6 +6,7 @@ Postgres de verdade, e não SQLite, porque partes do schema são específicas do
 Postgres (índice parcial do brinco, tipos ENUM nativos).
 """
 
+import os
 import uuid
 from collections.abc import AsyncIterator
 
@@ -21,10 +22,20 @@ from app.main import app
 from app.models import Animal, Fazenda, Lote, Papel, Usuario, UsuarioFazenda
 
 BANCO_TESTE = f"{settings.postgres_db}_test"
-URL_TESTE = (
-    f"postgresql+asyncpg://{settings.postgres_user}:{settings.postgres_password}"
-    f"@{settings.postgres_host}:{settings.postgres_port}/{BANCO_TESTE}"
-)
+
+
+def _url(usuario: str, senha: str) -> str:
+    return (
+        f"postgresql+asyncpg://{usuario}:{senha}"
+        f"@{settings.postgres_host}:{settings.postgres_port}/{BANCO_TESTE}"
+    )
+
+
+# A suíte roda com o **papel restrito**, o mesmo da aplicação. Com o
+# superusuário a Row-Level Security seria ignorada e os testes de isolamento
+# passariam sem provar nada.
+URL_TESTE = _url(settings.postgres_app_user, settings.postgres_app_password)
+URL_TESTE_ADMIN = _url(settings.postgres_user, settings.postgres_password)
 
 SENHA = "senha-de-teste"
 
@@ -50,25 +61,68 @@ async def _recriar_banco() -> None:
 
 @pytest.fixture(scope="session")
 async def engine():
+    """Banco de teste montado pelas **migrations**, não por `create_all`.
+
+    É mais lento, e é o preço de testar o schema que vai para produção: as
+    políticas de Row-Level Security e o papel restrito nascem nas migrations, e
+    com `create_all` os testes de isolamento rodariam contra um banco sem
+    nenhuma das duas coisas — passando sem provar nada.
+    """
     await _recriar_banco()
+
+    import subprocess
+
+    resultado = subprocess.run(
+        ["alembic", "upgrade", "head"],
+        cwd="/app",
+        capture_output=True,
+        text=True,
+        env={**os.environ, "POSTGRES_DB": BANCO_TESTE},
+    )
+    assert resultado.returncode == 0, resultado.stderr
+
     eng = create_async_engine(URL_TESTE)
-    async with eng.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    yield eng
+    await eng.dispose()
+
+
+@pytest.fixture(scope="session")
+async def engine_admin():
+    """Conexão administrativa, para preparar e conferir dados nos testes."""
+    eng = create_async_engine(URL_TESTE_ADMIN)
     yield eng
     await eng.dispose()
 
 
 @pytest.fixture
-async def session(engine) -> AsyncIterator[AsyncSession]:
-    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async def session(engine, engine_admin) -> AsyncIterator[AsyncSession]:
+    """Sessão de **preparo e conferência** dos testes.
+
+    Usa a conexão administrativa de propósito: as fixtures montam dados de duas
+    fazendas de uma vez, e a Row-Level Security — que existe justamente para
+    impedir isso — barraria o preparo.
+
+    É separada da sessão que o app usa. Fossem a mesma, desligar a RLS aqui a
+    desligaria também para os endpoints sob teste, e os testes de isolamento
+    passariam sem provar nada.
+    """
+    maker = async_sessionmaker(engine_admin, class_=AsyncSession, expire_on_commit=False)
     async with maker() as s:
         yield s
 
 
 @pytest.fixture
 async def client(engine, session) -> AsyncIterator[AsyncClient]:
+    """Cliente HTTP falando com o app através do **papel restrito**.
+
+    Cada requisição abre a própria sessão, como em produção — é o que faz a RLS
+    valer de verdade durante os testes.
+    """
+    maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
     async def _get_session() -> AsyncIterator[AsyncSession]:
-        yield session
+        async with maker() as s:
+            yield s
 
     app.dependency_overrides[get_session] = _get_session
     transport = ASGITransport(app=app)

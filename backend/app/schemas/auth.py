@@ -66,3 +66,21 @@ class PrimeiroAcessoRequest(BaseModel):
     email: EmailStr
     senha: str = Field(min_length=8, max_length=200)
     nome_fazenda: str = Field(min_length=2, max_length=160)
+
+
+class TrocarSenhaRequest(BaseModel):
+    """Troca da própria senha.
+
+    Exige a senha atual: sem isso, um celular esquecido desbloqueado vira uma
+    conta tomada. Não é burocracia — é a única barreira entre "acesso ao
+    aparelho" e "acesso permanente à conta".
+    """
+
+    senha_atual: str
+    senha_nova: str = Field(min_length=8, max_length=200)
+
+
+class RedefinirSenhaRequest(BaseModel):
+    """Redefinição feita por um administrador, para quem esqueceu a senha."""
+
+    senha_nova: str = Field(min_length=8, max_length=200)

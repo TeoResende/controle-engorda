@@ -8,8 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import get_session
-from app.core.deps import AdminDep, CtxDep
+from app.core.deps import AdminDep, CtxDep, SessaoGlobalDep, SessaoTenantDep
 from app.models import Fazenda, Papel, UsuarioFazenda
 from app.schemas import FazendaAtualizar, FazendaCriar, FazendaResponse
 
@@ -24,9 +23,7 @@ async def _fazenda_do_token(session: AsyncSession, ctx) -> Fazenda:
 
 
 @router.get("/atual", response_model=FazendaResponse)
-async def obter_atual(
-    ctx: CtxDep, session: Annotated[AsyncSession, Depends(get_session)]
-) -> Fazenda:
+async def obter_atual(ctx: CtxDep, session: SessaoTenantDep) -> Fazenda:
     """A fazenda é a do token — não existe rota para ler fazenda por id."""
     return await _fazenda_do_token(session, ctx)
 
@@ -35,7 +32,7 @@ async def obter_atual(
 async def atualizar_atual(
     dados: FazendaAtualizar,
     ctx: AdminDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoTenantDep,
 ) -> Fazenda:
     fazenda = await _fazenda_do_token(session, ctx)
     for campo, valor in dados.model_dump(exclude_unset=True).items():
@@ -48,7 +45,7 @@ async def atualizar_atual(
 @router.get("", response_model=list[FazendaResponse])
 async def listar_todas(
     ctx: CtxDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
     incluir_inativas: bool = False,
 ) -> list[Fazenda]:
     """Todas as fazendas do sistema — só para o admin master.
@@ -70,7 +67,7 @@ async def listar_todas(
 async def criar(
     dados: FazendaCriar,
     ctx: CtxDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> Fazenda:
     """Cria uma fazenda e vincula quem criou como admin dela.
 
@@ -90,9 +87,7 @@ async def criar(
 
 
 @router.delete("/atual", status_code=status.HTTP_204_NO_CONTENT)
-async def desativar_atual(
-    ctx: CtxDep, session: Annotated[AsyncSession, Depends(get_session)]
-) -> None:
+async def desativar_atual(ctx: CtxDep, session: SessaoGlobalDep) -> None:
     """Desativa a fazenda inteira. Só admin master: é uma decisão de dono do
     SaaS, não do admin do tenant — e nada é apagado, os dados continuam lá."""
     if not ctx.master:
@@ -109,7 +104,7 @@ async def desativar_atual(
 async def reativar(
     fazenda_id: uuid.UUID,
     ctx: CtxDep,
-    session: Annotated[AsyncSession, Depends(get_session)],
+    session: SessaoGlobalDep,
 ) -> Fazenda:
     if not ctx.master:
         raise HTTPException(
