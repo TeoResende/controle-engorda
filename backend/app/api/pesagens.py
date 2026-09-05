@@ -10,12 +10,15 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from app.core import armazenamento
+from app.core.config import settings
 from app.core.deps import CtxDep, EscritaDep, SessaoDep
-from app.models import Animal, Pesagem, StatusAnimal
+from app.core.fila import enfileirar
+from app.models import Animal, Pesagem, StatusAnimal, StatusTranscricao
 from app.schemas import (
     Pagina,
     PesagemAtualizar,
@@ -24,6 +27,10 @@ from app.schemas import (
     RespostaLote,
     ResultadoEnvio,
 )
+
+import logging
+
+logger = logging.getLogger("pesagens")
 
 router = APIRouter(prefix="/pesagens", tags=["pesagens"])
 
@@ -225,6 +232,83 @@ async def _obter(sessao: SessaoDep, pesagem_id: uuid.UUID) -> Pesagem:
     pesagem = await sessao.obter(Pesagem, pesagem_id)
     if pesagem is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pesagem não encontrada")
+    return pesagem
+
+
+@router.post("/{pesagem_id}/audio", response_model=PesagemResponse)
+async def enviar_audio(
+    pesagem_id: uuid.UUID,
+    sessao: SessaoDep,
+    ctx: EscritaDep,
+    arquivo: Annotated[UploadFile, File(description="Observação em áudio (webm/opus)")],
+) -> Pesagem:
+    """Anexa o áudio de observação a uma pesagem já registrada.
+
+    Em duas etapas de propósito (pesagem primeiro, áudio depois): a pesagem é o
+    dado que não pode se perder e sobe em JSON pequeno; o áudio é pesado e pode
+    falhar no meio sem levar o peso junto. É a ordem que o motor de sync do
+    celular segue.
+    """
+    pesagem = await _obter(sessao, pesagem_id)
+
+    conteudo = await arquivo.read()
+    if not conteudo:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Áudio vazio"
+        )
+    if len(conteudo) > settings.audio_max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=(
+                f"Áudio acima de {settings.audio_max_bytes // 1024} KB. "
+                f"Grave no máximo {settings.audio_max_segundos}s."
+            ),
+        )
+
+    chave = armazenamento.chave_do_audio(sessao.fazenda_id, pesagem.id)
+    await armazenamento.guardar(chave, conteudo, arquivo.content_type or "audio/webm")
+
+    pesagem.observacao_audio_url = chave
+    pesagem.status_transcricao = StatusTranscricao.pendente
+    await sessao.commit()
+
+    # A transcrição é job do worker: o técnico não espera por ela. Se a fila
+    # estiver fora do ar, o áudio já está guardado e a pesagem fica 'pendente'
+    # para ser reprocessada.
+    try:
+        await enfileirar("transcrever_audio", str(pesagem.id))
+    except Exception:  # noqa: BLE001
+        logger.exception("não consegui enfileirar a transcrição de %s", pesagem.id)
+
+    await sessao.session.refresh(pesagem)
+    return pesagem
+
+
+@router.get("/{pesagem_id}/audio")
+async def baixar_audio(pesagem_id: uuid.UUID, sessao: SessaoDep) -> Response:
+    """Devolve o áudio gravado. O arquivo é servido pela API, e não por link
+    direto do MinIO, para o isolamento por fazenda continuar valendo."""
+    pesagem = await _obter(sessao, pesagem_id)
+    if not pesagem.observacao_audio_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sem áudio")
+
+    conteudo = await armazenamento.baixar(pesagem.observacao_audio_url)
+    return Response(content=conteudo, media_type="audio/webm")
+
+
+@router.post("/{pesagem_id}/transcrever", response_model=PesagemResponse)
+async def reprocessar_transcricao(
+    pesagem_id: uuid.UUID, sessao: SessaoDep, ctx: EscritaDep
+) -> Pesagem:
+    """Reenfileira a transcrição — para quando ela falhou e o áudio segue lá."""
+    pesagem = await _obter(sessao, pesagem_id)
+    if not pesagem.observacao_audio_url:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sem áudio")
+
+    pesagem.status_transcricao = StatusTranscricao.pendente
+    await sessao.commit()
+    await enfileirar("transcrever_audio", str(pesagem.id))
+    await sessao.session.refresh(pesagem)
     return pesagem
 
 

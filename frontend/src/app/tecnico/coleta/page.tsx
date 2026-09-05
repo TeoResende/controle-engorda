@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { Gravador } from "@/components/gravador";
 import { Aviso, Botao, Cabecalho, Campo, LinkBotao } from "@/components/ui";
 import { animalPorBrinco, type AnimalLocal } from "@/lib/db";
 import { enfileirar, sincronizar } from "@/lib/sync";
@@ -23,6 +24,7 @@ function Conteudo() {
   const [animal, setAnimal] = useState<AnimalLocal | null | undefined>(undefined);
   const [peso, setPeso] = useState("");
   const [observacao, setObservacao] = useState("");
+  const [audio, setAudio] = useState<Blob | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -60,6 +62,10 @@ function Conteudo() {
       coletado_em: agora.toISOString(),
       tentativas: 0,
       ultimo_erro: null,
+      // O áudio viaja na mesma linha da fila: ele só pode subir depois que a
+      // pesagem for aceita, e some junto quando o servidor confirma os dois.
+      audio: audio ?? undefined,
+      audio_enviado: false,
     });
 
     // Tenta subir na hora, mas não espera dar certo: o registro já está salvo.
@@ -123,6 +129,7 @@ function Conteudo() {
           onChange={(e) => setObservacao(e.target.value)}
           placeholder="Algo fora do normal?"
         />
+        <Gravador aoGravar={(blob) => setAudio(blob)} />
         {erro && <Aviso tom="erro">{erro}</Aviso>}
         <Botao type="submit" variante="destaque" disabled={salvando || !peso.trim()}>
           {salvando ? "Salvando…" : "Salvar peso"}

@@ -79,11 +79,15 @@ export async function apiAuth<T>(caminho: string, opcoes: RequestInit = {}): Pro
   let sessao = lerSessao();
   if (!sessao) throw new ErroApi(401, "Sessão expirada");
 
+  // FormData define o próprio Content-Type, com o boundary do multipart —
+  // sobrescrever quebraria o upload de áudio.
+  const ehFormulario = opcoes.body instanceof FormData;
+
   const chamar = (token: string) =>
     bruto(caminho, {
       ...opcoes,
       headers: {
-        "Content-Type": "application/json",
+        ...(ehFormulario ? {} : { "Content-Type": "application/json" }),
         Authorization: `Bearer ${token}`,
         ...(opcoes.headers ?? {}),
       },

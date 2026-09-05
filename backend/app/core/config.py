@@ -32,6 +32,21 @@ class Settings(BaseSettings):
 
     log_level: str = "info"
 
+    # --- Transcrição de áudio (M7) ---
+    # API externa primeiro; sem chave ou em caso de falha, cai para o Whisper
+    # local. A URL segue o formato da API de transcrição da OpenAI, que virou
+    # padrão de fato — outros provedores a implementam.
+    transcricao_api_url: str = "https://api.openai.com/v1/audio/transcriptions"
+    transcricao_api_chave: str = ""
+    transcricao_api_modelo: str = "whisper-1"
+    transcricao_timeout_s: int = 60
+    # Modelo local do faster-whisper. "small" equilibra qualidade e CPU de VPS;
+    # "tiny" cabe em máquina apertada, "medium" pede bem mais memória.
+    whisper_modelo_local: str = "small"
+    # Teto de duração/tamanho do áudio de observação.
+    audio_max_segundos: int = 60
+    audio_max_bytes: int = 2 * 1024 * 1024
+
     @property
     def database_url(self) -> str:
         return (

@@ -139,8 +139,16 @@ services:
       MINIO_BUCKET: ${MINIO_BUCKET}
       SECRET_KEY: ${SECRET_KEY}
       LOG_LEVEL: ${LOG_LEVEL}
+      TRANSCRICAO_API_URL: ${TRANSCRICAO_API_URL}
+      TRANSCRICAO_API_CHAVE: ${TRANSCRICAO_API_CHAVE}
+      TRANSCRICAO_API_MODELO: ${TRANSCRICAO_API_MODELO}
+      WHISPER_MODELO_LOCAL: ${WHISPER_MODELO_LOCAL}
+      # Cache do modelo do Whisper: sem isso ele é rebaixado a cada recriação do
+      # container, e o download acontece justamente quando a rede já falhou.
+      HF_HOME: /modelos
     volumes:
       - ./backend:/app
+      - ./volumes/modelos:/modelos
     depends_on:
       postgres:
         condition: service_healthy

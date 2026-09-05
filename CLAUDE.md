@@ -360,6 +360,47 @@ vezes (dois hosts) e CORS. `NEXT_PUBLIC_API_URL=/api` no `.env`.
    Volte ao início, toque em *Ler brinco* e encoste o celular na tag — a tela de
    coleta abre com o brinco preenchido.
 
+## 8.4. Observação em áudio e transcrição (M7)
+
+O técnico segura um botão e fala, em vez de digitar com a mão suja. O texto vem
+depois, no servidor.
+
+- **Duas etapas, nesta ordem: pesagem primeiro, áudio depois.** A pesagem é o
+  dado que não pode se perder e sobe em JSON pequeno; o áudio é pesado e pode
+  falhar no meio sem levar o peso junto. O motor de sync segue essa ordem — se o
+  áudio falhar, o registro fica na fila só por causa dele, e reenviar a pesagem
+  não duplica (o id é o mesmo).
+- **A transcrição nunca roda na requisição.** É job do `arq`, disparado depois
+  que a pesagem já está a salvo. Se o Redis estiver fora do ar, o áudio já foi
+  guardado e a pesagem fica `pendente` para reprocessar
+  (`POST /pesagens/{id}/transcrever`) — falha de infraestrutura não pode
+  penalizar o técnico.
+- **API externa primeiro, Whisper local como queda.** A externa é rápida e não
+  gasta CPU do servidor, mas depende de rede e de crédito; o local não depende
+  de nada além da máquina, e é isso que faz dele um fallback de verdade. Sem
+  `TRANSCRICAO_API_CHAVE`, vai direto para o local.
+- **Transcrição não apaga o que o técnico digitou.** Digitou *e* gravou? Os dois
+  entram em `observacao_texto`, o falado marcado com `(áudio)`.
+- **Falha preserva o áudio.** Status vira `falhou`, o objeto continua no MinIO, e
+  dá para reprocessar sem o técnico perder o que gravou.
+- **Opus/WebM, 60s, 2 MB.** O áudio pode passar dias na fila do celular; codec
+  pesado enche o armazenamento do aparelho num dia de curral. O gravador corta
+  sozinho no limite.
+- **O áudio é servido pela API**, não por link direto do MinIO — senão o
+  isolamento por fazenda não valeria para os arquivos. A chave é prefixada por
+  `fazendas/{id}/`, o que também facilita cota e expurgo por tenant.
+
+O modelo do Whisper fica em `volumes/modelos/` (`HF_HOME`), senão seria baixado
+de novo a cada recriação do container — justamente quando a rede já demonstrou
+não estar confiável. Vale pré-aquecer no deploy:
+
+```bash
+docker compose exec worker python -m app.transcricao
+```
+
+Medido nesta máquina: modelo `small` em CPU leva ~90s no primeiro job (inclui o
+download) e poucos segundos depois disso, com o modelo em memória.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -373,7 +414,7 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M4** — pesagem com idempotência pelo UUID do cliente (88 testes)
 - [x] **M5** — PWA offline do técnico (Service Worker, IndexedDB, motor de sync)
 - [x] **M6** — leitura e gravação de tag NFC *(falta validar em celular real)*
-- [ ] M7 — áudio + transcrição
+- [x] **M7** — gravação, upload e transcrição de áudio (104 testes)
 - [ ] M8 — dashboard
 - [ ] M9 — deploy VPS
 - [ ] M10 — hardening

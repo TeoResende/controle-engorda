@@ -152,3 +152,21 @@ def logar(client):
         return {"Authorization": f"Bearer {resposta.json()['access_token']}"}
 
     return _logar
+
+
+@pytest.fixture
+def ctx_worker(session):
+    """`ctx` do arq apontando para a sessão do teste.
+
+    Sem isso o job abriria uma sessão para o banco de desenvolvimento e não
+    enxergaria nada do que o teste preparou.
+    """
+
+    class SessaoEmprestada:
+        async def __aenter__(self):
+            return session
+
+        async def __aexit__(self, *_):
+            return False
+
+    return {"sessao_factory": SessaoEmprestada}

@@ -32,6 +32,23 @@ export type ResumoSync = {
 
 const LOTE_MAXIMO = 200;
 
+/** Sobe o áudio de uma pesagem já aceita. Devolve se conseguiu. */
+async function enviarAudio(pesagemId: string, audio: Blob): Promise<boolean> {
+  try {
+    const formulario = new FormData();
+    formulario.append("arquivo", audio, "observacao.webm");
+    await apiAuth(`/pesagens/${pesagemId}/audio`, {
+      method: "POST",
+      body: formulario,
+      // Sem Content-Type manual: o navegador põe o boundary do multipart.
+      headers: {},
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 let sincronizando = false;
 
 export async function pendentes(): Promise<number> {
@@ -83,6 +100,9 @@ export async function sincronizar(): Promise<ResumoSync> {
         ),
       });
 
+      // A pesagem confirma primeiro; o áudio vai depois, um a um. Se o áudio
+      // falhar, o registro fica na fila — mas a pesagem já está no servidor, e
+      // reenviá-la não duplica (o id é o mesmo).
       const confirmados: string[] = [];
       for (const r of resposta.resultados) {
         if (r.situacao === "erro") {
@@ -97,6 +117,15 @@ export async function sincronizar(): Promise<ResumoSync> {
             });
           }
         } else {
+          const item = bloco.find((p) => p.id === r.id);
+          if (item?.audio && !item.audio_enviado) {
+            const subiu = await enviarAudio(r.id, item.audio);
+            if (!subiu) {
+              // Peso salvo, áudio pendente: fica na fila só pelo áudio.
+              await db.fila.update(r.id, { tentativas: item.tentativas + 1 });
+              continue;
+            }
+          }
           confirmados.push(r.id);
         }
       }

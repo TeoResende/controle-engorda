@@ -21,6 +21,13 @@ export type PesagemPendente = {
   coletado_em: string; // ISO, relógio do aparelho
   tentativas: number;
   ultimo_erro: string | null;
+  /**
+   * Áudio da observação, quando houver. Fica no mesmo registro da fila porque
+   * ele só pode subir DEPOIS que a pesagem foi aceita — e some junto quando o
+   * servidor confirma os dois.
+   */
+  audio?: Blob;
+  audio_enviado?: boolean;
 };
 
 /** Cópia local do rebanho, para a coleta funcionar sem sinal. */
