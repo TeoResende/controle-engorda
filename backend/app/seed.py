@@ -136,9 +136,16 @@ async def semear() -> None:
                     for k in range(5):
                         dias_atras = 28 * (4 - k)
                         data_pesagem = hoje - timedelta(days=dias_atras)
-                        coletado = datetime.combine(
-                            data_pesagem, datetime.min.time(), tzinfo=timezone.utc
-                        ) + timedelta(hours=8)
+                        # 8h da manhã é a hora plausível de curral, mas nunca
+                        # no futuro: coleta futura vence o desempate de "última
+                        # pesagem" contra dado real e falseia o peso atual.
+                        coletado = min(
+                            datetime.combine(
+                                data_pesagem, datetime.min.time(), tzinfo=timezone.utc
+                            )
+                            + timedelta(hours=8),
+                            datetime.now(timezone.utc) - timedelta(minutes=1),
+                        )
                         session.add(
                             Pesagem(
                                 id=uuid.uuid4(),  # em produção vem do celular

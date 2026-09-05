@@ -4,11 +4,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { EtiquetaConexao } from "@/components/barra-tecnico";
+import { UltimasPesagens } from "@/components/ultimas-pesagens";
 import { Microfone, Voltar } from "@/components/icones";
 import { GravadorDeVoz, LIMITE_SEGUNDOS, suporteGravacao } from "@/lib/audio";
 import { AreaDeTexto, Aviso, Botao, Campo, Chip } from "@/components/ui";
 import { animalPorBrinco, type AnimalLocal } from "@/lib/db";
-import { data as formatarData, peso as formatarPeso } from "@/lib/formato";
+import { data as formatarData, hojeLocal, peso as formatarPeso } from "@/lib/formato";
 import { enfileirar, sincronizar } from "@/lib/sync";
 import { novoUuid } from "@/lib/uuid";
 
@@ -27,7 +28,7 @@ function Conteudo() {
 
   const [animal, setAnimal] = useState<AnimalLocal | null | undefined>(undefined);
   const [online, setOnline] = useState(true);
-  const [dataPesagem, setDataPesagem] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dataPesagem, setDataPesagem] = useState(hojeLocal);
   const [peso, setPeso] = useState("");
   const [observacao, setObservacao] = useState("");
   const [audio, setAudio] = useState<Blob | null>(null);
@@ -167,7 +168,7 @@ function Conteudo() {
           type="date"
           value={dataPesagem}
           onChange={(e) => setDataPesagem(e.target.value)}
-          max={new Date().toISOString().slice(0, 10)}
+          max={hojeLocal()}
         />
 
         <Campo
@@ -206,6 +207,8 @@ function Conteudo() {
           </Aviso>
         )}
         {erro && <Aviso tom="erro">{erro}</Aviso>}
+
+        <UltimasPesagens animalId={animal?.id ?? null} brinco={brinco} />
 
         <div className="mt-auto flex flex-col gap-2 pt-4">
           <Botao type="submit" variante="destaque" disabled={salvando || !peso.trim()}>

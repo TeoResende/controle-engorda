@@ -7,7 +7,7 @@ registro duplicado. Um mesmo `id` sempre aponta para a mesma pesagem.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, File, HTTPException, Query, Response, UploadFile, status
@@ -37,6 +37,10 @@ router = APIRouter(prefix="/pesagens", tags=["pesagens"])
 # Uma pesagem coletada "amanhã" só pode ser relógio errado no aparelho. Aceitamos
 # um dia de folga para não rejeitar coleta legítima por fuso horário.
 FOLGA_DATA_FUTURA = 1
+# `coletado_em` no futuro é pior que inútil: ele vence o desempate de "última
+# pesagem" contra toda coleta legítima, e o peso atual do animal passa a ser um
+# valor que nunca foi medido. A folga cobre relógio de celular fora de hora.
+FOLGA_COLETA_FUTURA = timedelta(hours=26)
 
 
 class ErroDePesagem(Exception):
@@ -64,6 +68,12 @@ def _validar_data(dados: PesagemCriar) -> None:
     limite = date.today().toordinal() + FOLGA_DATA_FUTURA
     if dados.data.toordinal() > limite:
         raise ErroDePesagem("Data da pesagem está no futuro")
+
+    coletado = dados.coletado_em
+    if coletado.tzinfo is None:
+        coletado = coletado.replace(tzinfo=timezone.utc)
+    if coletado > datetime.now(timezone.utc) + FOLGA_COLETA_FUTURA:
+        raise ErroDePesagem("Horário da coleta está no futuro. Verifique o relógio do aparelho.")
 
 
 async def _registrar(

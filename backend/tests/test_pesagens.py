@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
 
 
 def payload(**extra) -> dict:
@@ -192,3 +193,61 @@ async def test_corrida_de_dois_envios_do_mesmo_id(client, dados, logar, monkeypa
     assert resposta.status_code == 200
     assert resposta.json()["id"] == corpo["id"]
     assert (await client.get(f"/pesagens?animal_id={animal_id}", headers=h)).json()["total"] == 1
+
+
+async def test_coleta_no_futuro_e_recusada(client, dados, logar):
+    """Relógio adiantado no aparelho não pode falsear o peso atual.
+
+    `coletado_em` no futuro vence o desempate de "última pesagem" contra toda
+    coleta legítima — o animal passa a exibir como peso atual um valor que
+    ninguém mediu naquele momento.
+    """
+    h = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    daqui_dois_dias = datetime.now(timezone.utc) + timedelta(days=2)
+    corpo = payload(animal_id=str(dados["animal_a"].id), coletado_em=daqui_dois_dias.isoformat())
+
+    resposta = await client.post("/pesagens", json=corpo, headers=h)
+    assert resposta.status_code == 422
+    assert "relógio" in resposta.json()["detail"].lower()
+
+
+async def test_pequeno_adiantamento_de_relogio_e_tolerado(client, dados, logar):
+    """Celular com meia hora de diferença é rotina; recusar seria perder dado."""
+    h = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    daqui_pouco = datetime.now(timezone.utc) + timedelta(hours=2)
+    corpo = payload(animal_id=str(dados["animal_a"].id), coletado_em=daqui_pouco.isoformat())
+
+    assert (await client.post("/pesagens", json=corpo, headers=h)).status_code == 201
+
+
+async def test_a_coleta_mais_recente_do_dia_e_a_que_vale(client, dados, logar):
+    """Duas pesagens no mesmo dia: vale a mais recente pelo relógio da coleta."""
+    h = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    animal_id = str(dados["animal_a"].id)
+    hoje = date.today().isoformat()
+    agora = datetime.now(timezone.utc)
+
+    await client.post(
+        "/pesagens",
+        json=payload(
+            animal_id=animal_id,
+            data=hoje,
+            peso_kg="300.00",
+            coletado_em=(agora - timedelta(hours=3)).isoformat(),
+        ),
+        headers=h,
+    )
+    await client.post(
+        "/pesagens",
+        json=payload(
+            animal_id=animal_id,
+            data=hoje,
+            peso_kg="310.00",
+            coletado_em=(agora - timedelta(minutes=5)).isoformat(),
+        ),
+        headers=h,
+    )
+
+    hc = await logar(dados["cliente_a"])
+    detalhe = (await client.get(f"/metricas/animal/{animal_id}", headers=hc)).json()
+    assert Decimal(detalhe["peso_atual"]) == Decimal("310.00")

@@ -263,8 +263,30 @@ caminho é pedir a mudança de papel a um administrador.
   ninguém capaz de gerir membros.
 - **`GET /animais/por-brinco/{brinco}`** é a rota que a tela de coleta vai usar
   depois da leitura NFC (M6); ela só encontra animal ativo e não desativado.
+- A tela de coleta mostra as **últimas pesagens do animal** logo abaixo do
+  formulário: é como o técnico confere se o que acabou de registrar entrou, e
+  como se pega erro de digitação (um 55 no lugar de 550) antes de salvar. As da
+  fila local aparecem primeiro e marcadas — some-las faria parecer que o registro
+  se perdeu. Sem sinal, a lista fica vazia com aviso, e isso não é erro.
 - Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
   e membros vêm como lista simples, por serem poucos.
+
+## 8.1.1. Fuso horário — "hoje" é o dia da fazenda
+
+`TZ=America/Sao_Paulo` no `.env`, aplicado a backend, worker, Postgres e
+frontend. **Instantes continuam gravados em UTC** (`timestamptz`); o que muda é a
+interpretação de "hoje".
+
+Sem isso, com o container em UTC, `date.today()` vira o dia seguinte às 21h do
+horário de Brasília: o contador "pesadas hoje" zera com o técnico ainda no
+curral, e a validação de data futura fica um dia deslocada.
+
+No cliente vale a mesma regra por outro caminho: `new Date().toISOString()`
+devolve a data em **UTC**, então a coleta feita depois das 21h era gravada com a
+data de amanhã. Toda data de calendário sai de `hojeLocal()` em
+`lib/formato.ts` — e nunca de `toISOString().slice(0, 10)`.
+
+Ao mudar de país ou de fuso, mexer só no `TZ`; o resto acompanha.
 
 ## 8.2. Pesagem e idempotência (M4)
 
@@ -292,9 +314,13 @@ a fila offline reenviar sem medo.
 - **A autoria vem do token**, nunca do corpo: o aparelho não escolhe em nome de
   quem a pesagem é assinada.
 - **`coletado_em` (relógio do aparelho) e `sincronizado_em` (relógio do servidor)**
-  são separados; a diferença é quanto tempo o celular ficou sem sinal. Data de
-  coleta no futuro é recusada com 1 dia de folga para fuso horário — só pode ser
-  relógio errado.
+  são separados; a diferença é quanto tempo o celular ficou sem sinal.
+- **Coleta no futuro é recusada**, tanto na data (1 dia de folga) quanto no
+  horário (26 horas de folga). Não é preciosismo: `coletado_em` no futuro vence o
+  desempate de "última pesagem" contra toda coleta legítima, e o peso atual do
+  animal passa a ser um valor que ninguém mediu naquele momento. Foi assim que um
+  peso real registrado pelo técnico deixou de aparecer no dashboard — o seed
+  gravava as pesagens do dia às 08:00, hora que ainda estava no futuro.
 - Pesagem errada é **desativada**, não apagada: sai da série mas continua
   auditável.
 

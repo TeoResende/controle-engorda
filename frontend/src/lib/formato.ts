@@ -18,6 +18,20 @@ export function gmd(valor: string | number | null | undefined): string {
   return numero(valor, 2);
 }
 
+/**
+ * Data de hoje no fuso do **aparelho**, em YYYY-MM-DD.
+ *
+ * `new Date().toISOString()` devolve a data em UTC. No Brasil (UTC-3) isso faz
+ * o app gravar a data de amanhã em toda coleta feita depois das 21h — bem no
+ * horário em que ainda se trabalha no curral.
+ */
+export function hojeLocal(momento = new Date()): string {
+  const ano = momento.getFullYear();
+  const mes = String(momento.getMonth() + 1).padStart(2, "0");
+  const dia = String(momento.getDate()).padStart(2, "0");
+  return `${ano}-${mes}-${dia}`;
+}
+
 /** Data ISO (YYYY-MM-DD) em dd/mm/aaaa, sem escorregar de fuso. */
 export function data(iso: string | null | undefined): string {
   if (!iso) return "—";

@@ -31,6 +31,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-America/Sao_Paulo}
+      PGTZ: ${TZ:-America/Sao_Paulo}
     volumes:
       - ./volumes/postgres:/var/lib/postgresql/data
     healthcheck:
@@ -106,6 +108,7 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS}
       LOG_LEVEL: ${LOG_LEVEL}
+      TZ: ${TZ:-America/Sao_Paulo}
     volumes:
       - ./backend:/app
     depends_on:
@@ -146,6 +149,7 @@ services:
       # Cache do modelo do Whisper: sem isso ele é rebaixado a cada recriação do
       # container, e o download acontece justamente quando a rede já falhou.
       HF_HOME: /modelos
+      TZ: ${TZ:-America/Sao_Paulo}
     volumes:
       - ./backend:/app
       - ./volumes/modelos:/modelos
@@ -163,6 +167,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       WATCHPACK_POLLING: "true"
+      TZ: ${TZ:-America/Sao_Paulo}
     volumes:
       - ./frontend:/app
       - /app/node_modules
