@@ -19,9 +19,12 @@ import {
 const HOJE = "2026-09-05";
 const ONTEM = "2026-09-04";
 
+const FAZENDA = "fazenda-de-teste";
+
 function animal(brinco: string, ultima_pesagem: string | null = null): AnimalLocal {
   return {
     id: `id-${brinco}`,
+    fazenda_id: FAZENDA,
     brinco,
     nome: null,
     raca: null,
@@ -36,6 +39,7 @@ function animal(brinco: string, ultima_pesagem: string | null = null): AnimalLoc
 function naFila(brinco: string, data = HOJE): PesagemPendente {
   return {
     id: `fila-${brinco}`,
+    fazenda_id: FAZENDA,
     animal_id: null,
     brinco,
     data,
