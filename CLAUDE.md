@@ -459,6 +459,10 @@ usuário mexer no lugar errado. Coberto por `frontend/testes/api.test.ts`.
 
 ### Como testar offline (o que funciona e o que não)
 
+> Explicação em linguagem não técnica, para técnico de campo e gestor:
+> [`docs/modo-offline.md`](docs/modo-offline.md). Mantenha os dois em dia — o de
+> lá é o que vai parar na mão de quem usa.
+
 | Ação | Sem sinal |
 |---|---|
 | Abrir o app | **sim** — Service Worker com o app shell |
