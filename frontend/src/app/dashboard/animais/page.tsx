@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
@@ -27,7 +27,6 @@ type Pagina = { itens: Animal[]; total: number };
 const POR_PAGINA = 50;
 
 function Conteudo() {
-  const router = useRouter();
   const parametros = useSearchParams();
   const [busca, setBusca] = useState(parametros.get("brinco") ?? "");
   const [pagina, setPagina] = useState(0);

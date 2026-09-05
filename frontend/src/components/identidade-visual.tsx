@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Aviso, Botao, Campo, Cartao } from "@/components/ui";
+import { Aviso, Cartao } from "@/components/ui";
 import { API_URL, apiAuth, ErroApi } from "@/lib/api";
 import { aplicarMarca, baixarMarca, canaisParaHex, type Marca } from "@/lib/marca";
 import { lerSessao } from "@/lib/sessao";

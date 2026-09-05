@@ -41,6 +41,26 @@ class Settings(BaseSettings):
 
     log_level: str = "info"
 
+    # --- Atrás de proxy ---
+    # Quando o TLS termina fora da aplicação — Traefik, Nginx Proxy Manager,
+    # Cloudflare —, o backend só sabe que a requisição chegou por HTTPS pelo
+    # cabeçalho X-Forwarded-Proto. Sem confiar nele, todo redirecionamento e
+    # toda URL gerada saem em http, e o navegador barra por conteúdo misto.
+    #
+    # Confiar em "*" só é seguro porque o backend não é alcançável de fora da
+    # rede do Docker. Se um dia for exposto direto, esta lista precisa virar os
+    # IPs reais dos proxies — senão qualquer cliente forja o cabeçalho.
+    proxies_confiaveis: str = "*"
+
+    # Origens aceitas pelo navegador. Em desenvolvimento o app roda em outro
+    # host; em produção ele é servido do mesmo domínio da API (rota /api), e
+    # apertar isso fecha uma porta que não precisa ficar aberta.
+    cors_origens: str = "*"
+
+    @property
+    def origens_permitidas(self) -> list[str]:
+        return [o.strip() for o in self.cors_origens.split(",") if o.strip()]
+
     # --- Transcrição de áudio (M7) ---
     # API externa primeiro; sem chave ou em caso de falha, cai para o Whisper
     # local. A URL segue o formato da API de transcrição da OpenAI, que virou

@@ -1,0 +1,31 @@
+# Deploy atrás de um proxy externo que já cuida do HTTPS.
+#
+# É o caminho de quem já tem Nginx Proxy Manager, Caddy ou Cloudflare na frente:
+# o TLS termina lá, e aqui dentro o Traefik só roteia em HTTP. Evita dois
+# certificados para o mesmo domínio e a briga pela porta 443.
+#
+# Uso: docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
+#
+# No proxy da frente, aponte o domínio para  http://IP-DESTA-MAQUINA:8081  e
+# mande repassar os cabeçalhos X-Forwarded-Proto e X-Forwarded-For. Confira em
+# /api/pronto: `x_forwarded_proto` tem que dizer "https".
+services:
+  traefik:
+    command:
+      - --providers.file.directory=/etc/traefik/dinamico
+      - --providers.file.watch=true
+      - --entrypoints.web.address=:80
+      # Sem redirecionar para https: quem faz isso é o proxy da frente. Redirecionar
+      # aqui também criaria um laço entre os dois.
+      - --entrypoints.web.forwardedHeaders.trustedIPs=${IPS_DO_PROXY:-127.0.0.1/32,172.16.0.0/12}
+      - --api.dashboard=true
+      - --api.insecure=true
+      - --log.level=INFO
+
+  backend:
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips ${PROXIES_CONFIAVEIS:-*}
+
+  frontend:
+    command: sh -c "npm run build && npm run start"

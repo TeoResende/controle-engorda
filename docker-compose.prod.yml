@@ -13,6 +13,11 @@ services:
       - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.le.acme.httpchallenge=true
       - --certificatesresolvers.le.acme.httpchallenge.entrypoint=web
+      # Atrás de OUTRO proxy (Nginx Proxy Manager, Cloudflare), o Traefik
+      # precisa confiar nos cabeçalhos que ele repassa — senão sobrescreve o
+      # esquema e o IP do cliente com os do proxy da frente.
+      - --entrypoints.web.forwardedHeaders.trustedIPs=${IPS_DO_PROXY:-127.0.0.1/32,172.16.0.0/12}
+      - --entrypoints.websecure.forwardedHeaders.trustedIPs=${IPS_DO_PROXY:-127.0.0.1/32,172.16.0.0/12}
       - --log.level=INFO
     volumes:
       - ./traefik/dinamico-prod:/etc/traefik/dinamico:ro
@@ -22,7 +27,9 @@ services:
       - "443:443"
 
   backend:
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: >
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --proxy-headers --forwarded-allow-ips ${PROXIES_CONFIAVEIS:-*}
 
   frontend:
     command: sh -c "npm run build && npm run start"

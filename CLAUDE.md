@@ -838,6 +838,36 @@ parecer sempre ruim. A visão geral **devolve os limites junto com os dados** �
 se a tela chutasse 0,5 e a fazenda usasse 0,8, o dashboard mostraria "no prazo"
 para um lote que o alerta do servidor já considera problema.
 
+## 8.10. Atrás de proxy externo
+
+Quando o HTTPS termina fora da aplicação — Nginx Proxy Manager, Caddy,
+Cloudflare —, o backend só descobre isso pelo cabeçalho `X-Forwarded-Proto`.
+Sem confiar nele, toda URL gerada sai em `http` e o navegador barra por conteúdo
+misto. Por isso o uvicorn roda com `--proxy-headers --forwarded-allow-ips`.
+
+Confiar em `*` só é seguro **porque o backend não é alcançável de fora da rede
+do Docker**. Se um dia for exposto direto, `PROXIES_CONFIAVEIS` precisa virar os
+IPs reais — senão qualquer cliente forja o cabeçalho e se anuncia como HTTPS.
+
+O Traefik, quando está atrás de outro proxy, precisa da mesma confiança
+declarada (`IPS_DO_PROXY`): sem isso ele **sobrescreve** o esquema e o IP do
+cliente com os do proxy da frente. Foi o que aconteceu no primeiro teste — e
+estava certo, porque o IP de origem não constava como confiável.
+
+```bash
+# TLS terminado num proxy externo, Traefik só roteando em HTTP
+docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d
+```
+
+Aponte o domínio do proxy da frente para `http://IP-DA-MAQUINA:8081`.
+
+**`GET /api/pronto`** mostra como a requisição chegou (esquema, host,
+`x-forwarded-proto`, IP do cliente). Existe porque "o app abre mas os links saem
+em http" é sintoma comum e impossível de diagnosticar às cegas.
+
+Em produção, apertar `CORS_ORIGENS` para o domínio real: o app é servido do mesmo
+domínio da API (rota `/api`), então não há motivo para deixar `*`.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
@@ -884,6 +914,8 @@ Rodar os testes:
 ```bash
 docker compose exec backend pytest -q
 docker compose exec frontend npm run test
+docker compose exec frontend npm run lint
+docker compose exec frontend npx tsc --noEmit
 ```
 
 A suíte usa um banco Postgres separado (`engorda_test`), recriado a cada

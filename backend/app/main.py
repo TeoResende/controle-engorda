@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.animais import router as animais_router
@@ -10,6 +10,7 @@ from app.api.lotes import router as lotes_router
 from app.api.metricas import router as metricas_router
 from app.api.pesagens import router as pesagens_router
 from app.api.setup import router as setup_router
+from app.core.config import settings
 from app.api.usuarios import router as membros_router
 
 app = FastAPI(
@@ -18,15 +19,36 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Em dev o frontend roda em outro host (app.localhost); em produção o Traefik
-# serve os dois sob o mesmo domínio e isto pode ser restringido.
+# Em desenvolvimento o frontend roda em outro host; em produção ele é servido do
+# mesmo domínio da API (rota /api), e aí `CORS_ORIGENS` deve listar só o domínio
+# real — porta aberta sem necessidade é porta aberta.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.origens_permitidas,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    # O navegador guarda o preflight por 10 minutos em vez de repeti-lo a cada
+    # chamada — sensível no celular, onde cada ida à rede custa.
+    max_age=600,
 )
+
+
+@app.get("/pronto", include_in_schema=False)
+async def pronto(requisicao: Request) -> dict:
+    """Diagnóstico de proxy: mostra como a requisição chegou até aqui.
+
+    Existe porque "o app abre mas os links saem em http" é um sintoma comum e
+    difícil de diagnosticar às cegas — aqui dá para ver se o proxy está mesmo
+    repassando o esquema.
+    """
+    return {
+        "esquema": requisicao.url.scheme,
+        "host": requisicao.headers.get("host"),
+        "x_forwarded_proto": requisicao.headers.get("x-forwarded-proto"),
+        "x_forwarded_for": requisicao.headers.get("x-forwarded-for"),
+        "cliente": requisicao.client.host if requisicao.client else None,
+    }
 
 app.include_router(health_router)
 app.include_router(setup_router)
