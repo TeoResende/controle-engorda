@@ -305,8 +305,9 @@ ela sobe.
 Pode. As duas ficam registradas, e a mais recente é a que vale como peso atual.
 
 **Se eu registrar sem querer um peso errado, dá para corrigir?**
-Sim, no painel do cliente. E nada é apagado de verdade — a pesagem retirada
-continua no sistema para consulta.
+Ainda não pela tela — a correção existe no sistema, mas a tela para fazê-la está
+por construir. Por enquanto, avise quem administra. Quando existir, nada será
+apagado de verdade: a pesagem retirada continua no sistema para consulta.
 
 **O áudio da observação também funciona offline?**
 Sim. Ele fica guardado junto com a pesagem e sobe depois dela. O peso tem
