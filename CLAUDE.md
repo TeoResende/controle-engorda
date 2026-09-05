@@ -286,11 +286,25 @@ a fila offline reenviar sem medo.
 
 ### Telas
 
+**Técnico** (navegação inferior: Início · Coleta · Animais · Mais)
+
 `/tecnico` (início) · `/tecnico/ler` (NFC) · `/tecnico/coleta?brinco=` ·
-`/tecnico/confirmacao` · `/tecnico/animal/novo` — as 5 do layout. Mais três de
-apoio: `/tecnico/login`, `/tecnico/offline` e `/tecnico/gravar` (grava a tag
-NTAG213 de um brinco; sem ela não haveria como preparar brinco para testar, e
-depender de app de terceiros não escala para centenas de animais).
+`/tecnico/confirmacao` · `/tecnico/animal/novo` — as 5 do layout. Mais:
+`/tecnico/animais` (rebanho no aparelho, lido do IndexedDB), `/tecnico/fila`
+(o que ainda não subiu e por quê), `/tecnico/mais`, `/tecnico/login`,
+`/tecnico/offline` e `/tecnico/gravar` (grava a tag NTAG213 de um brinco; sem
+ela não haveria como preparar brinco para testar, e depender de app de terceiros
+não escala para centenas de animais).
+
+Coleta e cadastro rodam **sem a moldura** (barra superior e abas): são telas de
+tarefa, e o técnico está com uma mão no celular e outra no animal.
+
+**Cliente** (barra lateral: Visão geral · Animais · Lotes · Configurações)
+
+`/dashboard` · `/dashboard/animais` (busca e paginação) · `/dashboard/lotes` ·
+`/dashboard/animal/[id]` · `/dashboard/configuracoes` (dados da fazenda e
+membros; a lista de membros é área de admin e o cliente recebe 403 com aviso).
+*Relatórios* não entrou: não está no escopo do MVP (seção 9).
 
 ### O que sobrevive sem sinal, e o que não
 
@@ -482,9 +496,14 @@ ajuste por fazenda, é ali que saem para o banco.
 estar atualizado, e cache agressivo faria o pecuarista decidir com número velho
 — o oposto do que o app do técnico precisa.
 
-Os gráficos são SVG escritos à mão (`components/grafico.tsx`): uma biblioteca
-custaria ~100 KB de bundle para desenhar duas linhas, e o dashboard precisa abrir
-rápido em conexão de fazenda.
+Os gráficos são SVG escritos à mão (`components/grafico.tsx`) e os ícones também
+(`components/icones.tsx`): biblioteca de gráfico custaria ~100 KB de bundle para
+desenhar duas linhas, e uma de ícones traria milhares para usar uma dúzia. O
+dashboard precisa abrir rápido em conexão de fazenda.
+
+Todo número que o usuário lê passa por `lib/formato.ts` — vírgula decimal e data
+`dd/mm/aaaa` montada a partir da string ISO, sem `new Date()`, que escorrega de
+fuso e mostra o dia anterior.
 
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
@@ -503,6 +522,20 @@ Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia compl
 - [x] **M8** — dashboard do cliente: KPIs, curva, lotes e alertas (116 testes)
 - [ ] M9 — deploy VPS
 - [ ] M10 — hardening
+
+### Verificar o frontend sem quebrar o servidor de desenvolvimento
+
+**Não rodar `next build` no container com o `next dev` em pé.** Os dois disputam
+a mesma pasta `.next`: o build sobrescreve o que o dev está servindo, e o
+resultado vai de um falso "Failed to collect page data" a 404 em todas as rotas
+até recriar o container. Para checar tipos, use o que não toca no `.next`:
+
+```bash
+docker compose exec frontend npx tsc --noEmit
+```
+
+Para um build de verdade, suba o overlay de produção (`docker-compose.pwa.yml`),
+que roda `npm run build` como comando do container.
 
 ### Como rodar em desenvolvimento
 

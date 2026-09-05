@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import EscritaDep, SessaoDep
-from app.models import Animal, AnimalBrincoHistorico, Lote, StatusAnimal
+from app.models import Animal, AnimalBrincoHistorico, Lote, Pesagem, StatusAnimal
 from app.schemas import (
     AnimalAtualizar,
     AnimalCriar,
@@ -73,14 +73,44 @@ async def listar(
     total = await sessao.session.scalar(
         select(func.count()).select_from(base.subquery())
     )
-    itens = await sessao.session.scalars(
-        base.order_by(Animal.brinco).limit(limite).offset(deslocamento)
+
+    # Último peso vem junto: a tela de coleta precisa dele para mostrar a
+    # referência, e o app do técnico guarda isso no aparelho para funcionar sem
+    # sinal. Buscar por animal seria N+1 num rebanho de milhares.
+    ultima = (
+        select(
+            Pesagem.animal_id,
+            Pesagem.peso_kg,
+            Pesagem.data,
+            func.row_number()
+            .over(
+                partition_by=Pesagem.animal_id,
+                order_by=(Pesagem.data.desc(), Pesagem.coletado_em.desc(), Pesagem.id.desc()),
+            )
+            .label("pos"),
+        )
+        .where(Pesagem.fazenda_id == sessao.fazenda_id, Pesagem.desativado_em.is_(None))
+        .subquery()
     )
+    recente = select(ultima).where(ultima.c.pos == 1).subquery()
+
+    linhas = await sessao.session.execute(
+        base.add_columns(recente.c.peso_kg, recente.c.data)
+        .join(recente, recente.c.animal_id == Animal.id, isouter=True)
+        .order_by(Animal.brinco)
+        .limit(limite)
+        .offset(deslocamento)
+    )
+
+    itens = []
+    for animal, peso, data_peso in linhas:
+        resposta = AnimalResponse.model_validate(animal)
+        resposta.ultimo_peso = peso
+        resposta.ultima_pesagem = data_peso
+        itens.append(resposta)
+
     return Pagina[AnimalResponse](
-        itens=[AnimalResponse.model_validate(a) for a in itens],
-        total=total or 0,
-        limite=limite,
-        deslocamento=deslocamento,
+        itens=itens, total=total or 0, limite=limite, deslocamento=deslocamento
     )
 
 

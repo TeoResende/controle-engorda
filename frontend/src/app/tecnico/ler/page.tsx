@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { Aviso, Botao, Cabecalho, LinkBotao } from "@/components/ui";
 import { escutarTags, suporteNfc, type SuporteNfc } from "@/lib/nfc";
@@ -12,8 +12,10 @@ import { escutarTags, suporteNfc, type SuporteNfc } from "@/lib/nfc";
  * Web NFC só existe no Chrome/Android e só em contexto seguro. Quando não dá,
  * esta tela não pode virar beco sem saída: o técnico segue pelo número digitado.
  */
-export default function Ler() {
+function Conteudo() {
   const router = useRouter();
+  // Quando a leitura foi pedida pela tela de cadastro, o brinco volta para lá.
+  const destino = useSearchParams().get("destino");
   const [suporte, setSuporte] = useState<SuporteNfc | null>(null);
   const [escutando, setEscutando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -35,7 +37,11 @@ export default function Ler() {
           abortador.abort(); // uma tag por vez: já vai para a coleta
           // Vibração curta confirma a leitura sem o técnico precisar olhar a tela.
           navigator.vibrate?.(80);
-          router.push(`/tecnico/coleta?brinco=${encodeURIComponent(brinco)}`);
+          router.replace(
+            destino === "cadastro"
+              ? `/tecnico/animal/novo?brinco=${encodeURIComponent(brinco)}`
+              : `/tecnico/coleta?brinco=${encodeURIComponent(brinco)}`,
+          );
         },
         aoErrar: setErro,
       });
@@ -93,9 +99,17 @@ export default function Ler() {
 
       {erro && <Aviso tom="erro">{erro}</Aviso>}
 
-      <LinkBotao href="/tecnico" variante="neutra">
-        Digitar o número
+      <LinkBotao href="/tecnico/animais" variante="neutra">
+        Buscar pelo número
       </LinkBotao>
     </main>
+  );
+}
+
+export default function Ler() {
+  return (
+    <Suspense fallback={null}>
+      <Conteudo />
+    </Suspense>
   );
 }

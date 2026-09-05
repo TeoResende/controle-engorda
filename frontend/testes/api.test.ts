@@ -30,7 +30,7 @@ describe("cliente de API", () => {
   it("HTML no lugar de JSON não vira 'sem conexão'", async () => {
     fetchFalso.mockResolvedValue(resposta("<!DOCTYPE html><html>404</html>"));
 
-    const erro = await api("/setup/status").catch((e) => e);
+    const erro = (await api("/setup/status").catch((e) => e)) as ErroApi;
 
     expect(erro).toBeInstanceOf(ErroApi);
     expect(erro).not.toBeInstanceOf(SemConexao);
@@ -40,7 +40,7 @@ describe("cliente de API", () => {
   it("erro do servidor com HTML informa o status, não a rede", async () => {
     fetchFalso.mockResolvedValue(resposta("<html>502 Bad Gateway</html>", 502));
 
-    const erro = await api("/setup/status").catch((e) => e);
+    const erro = (await api("/setup/status").catch((e) => e)) as ErroApi;
 
     expect(erro).toBeInstanceOf(ErroApi);
     expect(erro.status).toBe(502);
@@ -57,7 +57,7 @@ describe("cliente de API", () => {
       resposta(JSON.stringify({ detail: "E-mail ou senha inválidos" }), 401),
     );
 
-    const erro = await api("/auth/login", { method: "POST" }).catch((e) => e);
+    const erro = (await api("/auth/login", { method: "POST" }).catch((e) => e)) as ErroApi;
 
     expect(erro.status).toBe(401);
     expect(erro.message).toBe("E-mail ou senha inválidos");
@@ -72,7 +72,7 @@ describe("cliente de API", () => {
     };
     fetchFalso.mockResolvedValue(resposta(JSON.stringify(detalhe), 409));
 
-    const erro = await api("/auth/login", { method: "POST" }).catch((e) => e);
+    const erro = (await api("/auth/login", { method: "POST" }).catch((e) => e)) as ErroApi;
 
     expect(erro.status).toBe(409);
     expect((erro.corpo as typeof detalhe).detail.fazendas).toHaveLength(1);

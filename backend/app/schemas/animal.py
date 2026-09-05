@@ -50,6 +50,10 @@ class AnimalResponse(BaseModel):
     observacoes: str | None
     criado_em: datetime
     desativado_em: datetime | None
+    # Último peso conhecido, para a tela de coleta mostrar a referência mesmo
+    # sem sinal — o app guarda isto junto com o animal no aparelho.
+    ultimo_peso: Decimal | None = None
+    ultima_pesagem: date | None = None
 
 
 class BrincoHistoricoResponse(BaseModel):

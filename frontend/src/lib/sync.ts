@@ -182,8 +182,11 @@ export async function baixarRebanho(): Promise<number> {
         brinco: a.brinco,
         nome: a.nome ?? null,
         raca: a.raca ?? null,
+        porte: a.porte ?? null,
         lote_id: a.lote_id ?? null,
         status: a.status,
+        ultimo_peso: a.ultimo_peso ?? null,
+        ultima_pesagem: a.ultima_pesagem ?? null,
       })),
     );
   });

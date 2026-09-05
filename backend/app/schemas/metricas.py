@@ -29,6 +29,14 @@ class Alerta(BaseModel):
     valor: Decimal | None = None
 
 
+class ResumoDoDia(BaseModel):
+    """O que o técnico precisa ver ao abrir o app."""
+
+    pesadas_hoje: int
+    lote_ativo: str | None
+    lote_ativo_id: uuid.UUID | None
+
+
 class VisaoGeral(BaseModel):
     animais_ativos: int
     animais_pesados: int
@@ -44,6 +52,10 @@ class VisaoGeral(BaseModel):
 class PesagemDaSerie(BaseModel):
     data: date
     peso_kg: Decimal
+    # Variação em relação à pesagem anterior. Nula na primeira, que não tem
+    # anterior — zero ali seria lido como "não ganhou nada".
+    variacao: Decimal | None
+    tecnico_nome: str | None
     observacao_texto: str | None
     tem_audio: bool
 
@@ -53,6 +65,13 @@ class DetalheAnimal(BaseModel):
     brinco: str
     nome: str | None
     raca: str | None
+    porte: str | None
+    brinco_mae: str | None
+    data_nascimento: date | None
+    idade_meses: int | None
+    peso_nascimento: Decimal | None
+    observacoes: str | None
+    lote_id: uuid.UUID | None
     lote: str | None
     status: str
     peso_atual: Decimal | None

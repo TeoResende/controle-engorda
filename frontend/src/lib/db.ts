@@ -36,8 +36,12 @@ export type AnimalLocal = {
   brinco: string;
   nome: string | null;
   raca: string | null;
+  porte: string | null;
   lote_id: string | null;
   status: string;
+  /** Referência que a tela de coleta mostra — precisa existir sem sinal. */
+  ultimo_peso: string | null;
+  ultima_pesagem: string | null;
 };
 
 export type Meta = { chave: string; valor: unknown };

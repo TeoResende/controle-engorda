@@ -1,117 +1,108 @@
 "use client";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
-import { Aviso, Botao, Cabecalho, Campo, LinkBotao } from "@/components/ui";
-import { db } from "@/lib/db";
-import { limparSessao } from "@/lib/sessao";
-import { sincronizarTudo } from "@/lib/sync";
+import { Brinco, Mais, Sincronizar } from "@/components/icones";
+import { Cartao } from "@/components/ui";
+import { apiAuth } from "@/lib/api";
+import { db, gravarMeta, lerMeta } from "@/lib/db";
+import { identidadeGuardada, ROTULO_PAPEL, type Identidade } from "@/lib/sessao-usuario";
+
+type ResumoDoDia = { pesadas_hoje: number; lote_ativo: string | null };
 
 /** Tela 1 — Início. */
 export default function Inicio() {
-  const router = useRouter();
-  const [brinco, setBrinco] = useState("");
-  const [sincronizando, setSincronizando] = useState(false);
-  const [resultado, setResultado] = useState<string | null>(null);
+  const [identidade, setIdentidade] = useState<Identidade | null>(null);
+  const [hoje, setHoje] = useState<ResumoDoDia | null>(null);
+  const pendentes = useLiveQuery(() => db.fila.count(), [], 0);
 
-  const fila = useLiveQuery(() => db.fila.orderBy("coletado_em").reverse().toArray(), [], []);
-  const rebanho = useLiveQuery(() => db.animais.count(), [], 0);
-  const comErro = fila.filter((p) => p.ultimo_erro);
+  useEffect(() => {
+    void identidadeGuardada().then((i) => i && setIdentidade(i));
 
-  async function sincronizarAgora() {
-    setSincronizando(true);
-    setResultado(null);
-    const resumo = await sincronizarTudo();
-    setResultado(
-      resumo.motivo
-        ? `Não deu para sincronizar: ${resumo.motivo}.`
-        : `${resumo.enviadas} enviada(s). ${resumo.restantes} na fila.`,
-    );
-    setSincronizando(false);
-  }
-
-  function abrirColeta(evento: React.FormEvent) {
-    evento.preventDefault();
-    const limpo = brinco.trim();
-    if (limpo) router.push(`/tecnico/coleta?brinco=${encodeURIComponent(limpo)}`);
-  }
+    // Números do dia: mostra o último valor conhecido enquanto busca, para a
+    // tela não piscar vazia — e para ela dizer algo mesmo offline.
+    void lerMeta<ResumoDoDia>("resumo_do_dia").then((r) => r && setHoje(r));
+    apiAuth<ResumoDoDia>("/metricas/hoje")
+      .then((r) => {
+        setHoje(r);
+        void gravarMeta("resumo_do_dia", r);
+      })
+      .catch(() => {
+        /* offline: fica o último conhecido */
+      });
+  }, []);
 
   return (
-    <main className="flex flex-col gap-6">
-      <Cabecalho titulo="Coleta de peso" subtitulo={`${rebanho} animais no aparelho`} />
+    <main className="flex flex-col gap-5 p-5">
+      <div>
+        <h1 className="font-titulo text-3xl font-extrabold text-verde">
+          Olá, {identidade?.nome?.split(" ")[0] ?? ""}
+        </h1>
+        <p className="text-sm text-verde/60">
+          {ROTULO_PAPEL[identidade?.papel ?? ""] ?? ""}
+        </p>
+      </div>
 
-      <div className="flex flex-col gap-3">
-        <LinkBotao href="/tecnico/ler" variante="destaque">
-          Ler brinco por aproximação
-        </LinkBotao>
+      <section className="flex flex-col items-center gap-3 rounded-2xl bg-verde px-5 py-7 text-center">
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-fundo/10">
+          <Brinco className="h-8 w-8 text-lima" />
+        </span>
+        <div>
+          <h2 className="font-titulo text-xl font-extrabold text-fundo">Coleta rápida</h2>
+          <p className="mt-1 text-sm text-fundo/70">
+            Aproxime o celular do brinco para começar
+          </p>
+        </div>
+        <Link
+          href="/tecnico/ler"
+          className="mt-1 flex min-h-[56px] w-full items-center justify-center rounded-xl bg-lima px-5 font-titulo font-bold text-verde"
+        >
+          Ler brinco (NFC)
+        </Link>
+      </section>
 
-        <form onSubmit={abrirColeta} className="flex flex-col gap-3">
-          <Campo
-            rotulo="Ou digite o número do brinco"
-            inputMode="numeric"
-            value={brinco}
-            onChange={(e) => setBrinco(e.target.value)}
-            placeholder="1234"
-          />
-          <Botao type="submit" variante="neutra" disabled={!brinco.trim()}>
-            Abrir coleta
-          </Botao>
-        </form>
+      <div className="grid grid-cols-2 gap-3">
+        <Link
+          href="/tecnico/animal/novo"
+          className="flex flex-col gap-3 rounded-2xl border border-verde/8 bg-white px-4 py-4"
+        >
+          <Mais className="h-6 w-6 text-verde" />
+          <span className="font-titulo text-sm font-bold text-verde">Novo animal</span>
+        </Link>
+
+        <Link
+          href="/tecnico/fila"
+          className="relative flex flex-col gap-3 rounded-2xl border border-verde/8 bg-white px-4 py-4"
+        >
+          <Sincronizar className="h-6 w-6 text-verde" />
+          <span className="font-titulo text-sm font-bold text-verde">Fila de sincronização</span>
+          {pendentes > 0 && (
+            <span className="absolute right-3 top-3 flex h-6 min-w-6 items-center justify-center rounded-full bg-red-600 px-1.5 text-xs font-bold text-white">
+              {pendentes}
+            </span>
+          )}
+        </Link>
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-titulo text-sm font-bold uppercase tracking-wide text-verde/60">
-          Fila de envio
-        </h2>
-
-        {fila.length === 0 ? (
-          <Aviso>Nada pendente. Tudo que você coletou já está no servidor.</Aviso>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {fila.slice(0, 8).map((p) => (
-              <li
-                key={p.id}
-                className="flex items-center justify-between rounded-xl bg-white px-4 py-3"
-              >
-                <span className="font-titulo font-bold text-verde">Brinco {p.brinco}</span>
-                <span className="text-sm text-verde/60">{p.peso_kg} kg</span>
-              </li>
-            ))}
-            {fila.length > 8 && (
-              <li className="px-1 text-xs text-verde/50">e mais {fila.length - 8}…</li>
-            )}
-          </ul>
-        )}
-
-        {comErro.length > 0 && (
-          <Aviso tom="erro">
-            {comErro.length} pesagem(ns) o servidor recusou: {comErro[0].ultimo_erro}
-          </Aviso>
-        )}
-
-        <Botao onClick={sincronizarAgora} disabled={sincronizando}>
-          {sincronizando ? "Sincronizando…" : "Sincronizar agora"}
-        </Botao>
-        {resultado && <Aviso>{resultado}</Aviso>}
+        <h2 className="text-xs font-bold uppercase tracking-wider text-verde/50">Hoje</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <Cartao className="p-4">
+            <p className="font-titulo text-3xl font-extrabold text-verde">
+              {hoje?.pesadas_hoje ?? "—"}
+            </p>
+            <p className="mt-0.5 text-xs text-verde/60">animais pesados</p>
+          </Cartao>
+          <Cartao className="p-4">
+            <p className="font-titulo text-lg font-extrabold text-verde">
+              {hoje?.lote_ativo ?? "—"}
+            </p>
+            <p className="mt-0.5 text-xs text-verde/60">lote ativo</p>
+          </Cartao>
+        </div>
       </section>
-
-      <div className="flex items-center justify-between">
-        <a href="/tecnico/gravar" className="py-2 text-sm text-verde/50 underline">
-          Gravar tag de um brinco
-        </a>
-      </div>
-
-      <button
-        onClick={() => {
-          limparSessao();
-          router.replace("/tecnico/login");
-        }}
-        className="py-2 text-sm text-verde/50 underline"
-      >
-        Sair
-      </button>
     </main>
   );
 }

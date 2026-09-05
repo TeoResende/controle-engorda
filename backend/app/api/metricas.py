@@ -5,8 +5,8 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.core.deps import SessaoDep
-from app.schemas.metricas import DetalheAnimal, VisaoGeral
+from app.core.deps import CtxDep, SessaoDep
+from app.schemas.metricas import DetalheAnimal, ResumoDoDia, VisaoGeral
 from app.servicos import metricas
 
 router = APIRouter(prefix="/metricas", tags=["métricas"])
@@ -18,6 +18,12 @@ async def visao_geral(
     meses: Annotated[int, Query(ge=1, le=36, description="Janela da série")] = 6,
 ) -> VisaoGeral:
     return await metricas.visao_geral(sessao.session, sessao.fazenda_id, meses)
+
+
+@router.get("/hoje", response_model=ResumoDoDia)
+async def resumo_do_dia(sessao: SessaoDep, ctx: CtxDep) -> ResumoDoDia:
+    """Contadores da tela inicial do técnico."""
+    return await metricas.resumo_do_dia(sessao.session, sessao.fazenda_id, ctx.usuario.id)
 
 
 @router.get("/animal/{animal_id}", response_model=DetalheAnimal)

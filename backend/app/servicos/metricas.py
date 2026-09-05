@@ -14,12 +14,13 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import Date, Numeric, case, cast, func, select
+from sqlalchemy import Date, Numeric, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Animal, Lote, Pesagem, StatusAnimal
+from app.models import Animal, Lote, Pesagem, StatusAnimal, Usuario
 from app.schemas.metricas import (
     Alerta,
+    ResumoDoDia,
     DetalheAnimal,
     PesagemDaSerie,
     PontoDaSerie,
@@ -261,6 +262,59 @@ async def _alertas(sessao: AsyncSession, fazenda_id: uuid.UUID) -> list[Alerta]:
     return alertas
 
 
+async def resumo_do_dia(
+    sessao: AsyncSession, fazenda_id: uuid.UUID, tecnico_id: uuid.UUID
+) -> ResumoDoDia:
+    """Contadores da tela inicial do técnico.
+
+    "Pesadas hoje" conta só o que **este** técnico registrou: é o número que ele
+    usa para saber onde parou, não uma estatística da fazenda.
+    """
+    hoje = date.today()
+
+    pesadas = await sessao.scalar(
+        select(func.count(Pesagem.id)).where(
+            Pesagem.fazenda_id == fazenda_id,
+            Pesagem.tecnico_id == tecnico_id,
+            Pesagem.data == hoje,
+            Pesagem.desativado_em.is_(None),
+        )
+    )
+
+    # Lote onde mais se pesou hoje; sem pesagem hoje, o maior lote ativo — é o
+    # que o técnico provavelmente vai atacar em seguida.
+    lote = (
+        await sessao.execute(
+            select(Lote.id, Lote.nome, func.count(Pesagem.id).label("hoje"))
+            .join(Animal, Animal.lote_id == Lote.id)
+            .join(
+                Pesagem,
+                and_(
+                    Pesagem.animal_id == Animal.id,
+                    Pesagem.data == hoje,
+                    Pesagem.desativado_em.is_(None),
+                ),
+                isouter=True,
+            )
+            .where(
+                Lote.fazenda_id == fazenda_id,
+                Lote.desativado_em.is_(None),
+                Animal.desativado_em.is_(None),
+                Animal.status == StatusAnimal.ativo,
+            )
+            .group_by(Lote.id, Lote.nome)
+            .order_by(func.count(Pesagem.id).desc(), func.count(Animal.id).desc())
+            .limit(1)
+        )
+    ).first()
+
+    return ResumoDoDia(
+        pesadas_hoje=pesadas or 0,
+        lote_ativo=lote[1] if lote else None,
+        lote_ativo_id=lote[0] if lote else None,
+    )
+
+
 async def detalhe_animal(
     sessao: AsyncSession, fazenda_id: uuid.UUID, animal_id: uuid.UUID
 ) -> DetalheAnimal | None:
@@ -274,17 +328,19 @@ async def detalhe_animal(
     if animal.lote_id:
         lote_nome = await sessao.scalar(select(Lote.nome).where(Lote.id == animal.lote_id))
 
-    pesagens = list(
-        await sessao.scalars(
-            select(Pesagem)
+    linhas = list(
+        await sessao.execute(
+            select(Pesagem, Usuario.nome)
+            .join(Usuario, Usuario.id == Pesagem.tecnico_id, isouter=True)
             .where(
                 Pesagem.animal_id == animal_id,
                 Pesagem.fazenda_id == fazenda_id,
                 Pesagem.desativado_em.is_(None),
             )
-            .order_by(Pesagem.data)
+            .order_by(Pesagem.data, Pesagem.coletado_em, Pesagem.id)
         )
     )
+    pesagens = [linha[0] for linha in linhas]
 
     peso_inicial = pesagens[0].peso_kg if pesagens else None
     peso_atual = pesagens[-1].peso_kg if pesagens else None
@@ -292,11 +348,40 @@ async def detalhe_animal(
     dias = (pesagens[-1].data - pesagens[0].data).days if len(pesagens) >= 2 else None
     gmd = (ganho / Decimal(max(dias or 1, 1))) if ganho is not None else None
 
+    idade = None
+    if animal.data_nascimento:
+        d = date.today()
+        idade = (d.year - animal.data_nascimento.year) * 12 + d.month - animal.data_nascimento.month
+        if d.day < animal.data_nascimento.day:
+            idade -= 1
+        idade = max(idade, 0)
+
+    serie = []
+    for i, (pesagem, tecnico_nome) in enumerate(linhas):
+        serie.append(
+            PesagemDaSerie(
+                data=pesagem.data,
+                peso_kg=pesagem.peso_kg,
+                # Nula na primeira: não há anterior com que comparar.
+                variacao=(pesagem.peso_kg - linhas[i - 1][0].peso_kg) if i > 0 else None,
+                tecnico_nome=tecnico_nome,
+                observacao_texto=pesagem.observacao_texto,
+                tem_audio=bool(pesagem.observacao_audio_url),
+            )
+        )
+
     return DetalheAnimal(
         animal_id=animal.id,
         brinco=animal.brinco,
         nome=animal.nome,
         raca=animal.raca,
+        porte=animal.porte,
+        brinco_mae=animal.brinco_mae,
+        data_nascimento=animal.data_nascimento,
+        idade_meses=idade,
+        peso_nascimento=animal.peso_nascimento,
+        observacoes=animal.observacoes,
+        lote_id=animal.lote_id,
         lote=lote_nome,
         status=animal.status.value,
         peso_atual=peso_atual,
@@ -304,13 +389,5 @@ async def detalhe_animal(
         ganho_total=_arredondar(ganho),
         gmd=_arredondar(gmd, 3),
         dias_acompanhado=dias,
-        pesagens=[
-            PesagemDaSerie(
-                data=p.data,
-                peso_kg=p.peso_kg,
-                observacao_texto=p.observacao_texto,
-                tem_audio=bool(p.observacao_audio_url),
-            )
-            for p in pesagens
-        ],
+        pesagens=serie,
     )
