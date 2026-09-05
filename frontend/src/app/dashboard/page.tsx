@@ -39,6 +39,7 @@ type VisaoGeral = {
     gmd_medio: string | null;
   }[];
   alertas: Alerta[];
+  alertas_total: number;
 };
 
 /* A meta vem da fazenda: chutar 0,5 aqui faria o dashboard mostrar "no prazo"
@@ -123,7 +124,9 @@ export default function Dashboard() {
         <Kpi rotulo="Peso médio atual" valor={formatarPeso(dados.peso_medio)} unidade="kg" />
         <Kpi
           rotulo="Abaixo da meta"
-          valor={abaixoDaMeta.length}
+          // O total, não o que coube na resposta: a lista vem limitada aos mais
+          // graves, e mostrar 50 num rebanho com 1.240 problemas mentiria.
+          valor={dados.alertas_total}
           unidade="animais"
           tom="alerta"
         />
@@ -142,6 +145,12 @@ export default function Dashboard() {
 
         <Cartao>
           <h2 className="font-titulo font-extrabold text-verde">Animais abaixo da meta</h2>
+          {dados.alertas_total > abaixoDaMeta.length && (
+            <p className="text-xs text-verde/55">
+              Mostrando os {Math.min(8, abaixoDaMeta.length)} mais graves de{" "}
+              {dados.alertas_total}.
+            </p>
+          )}
           {abaixoDaMeta.length === 0 ? (
             <p className="mt-3 rounded-xl bg-lima/15 px-4 py-6 text-center text-sm text-verde/70">
               Nenhum animal fora do esperado.

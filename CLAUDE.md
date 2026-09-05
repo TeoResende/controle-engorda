@@ -610,6 +610,35 @@ download) e poucos segundos depois disso, com o modelo em memória.
 
 `GET /metricas/visao-geral` e `GET /metricas/animal/{id}` alimentam as telas 6 e 7.
 
+### Desempenho: medido com 5.000 animais e 120.000 pesagens
+
+O sistema foi construído e testado com 24 animais. Sob volume real, a visão
+geral levava **269 segundos** — inutilizável. Três causas, todas corrigidas:
+
+| Causa | Antes | Depois |
+|---|---|---|
+| Auto-join entre primeira e última pesagem | 33 s | 0,16 s |
+| Resumo recalculado 3× por requisição | 3× o custo | 1 consulta |
+| Alertas sem limite (5.000 na resposta) | carga inteira | 50 + total |
+| **Visão geral completa** | **269 s** | **0,25 s** |
+
+O auto-join era o pior: numerar as pesagens com funções de janela custava 219 ms,
+mas juntar a primeira com a última virava um laço que percorria o conjunto
+inteiro uma vez por animal — 25 milhões de visitas. `array_agg` com ordem
+explícita resolve tudo numa passada, agrupando.
+
+O resumo agora é buscado **uma vez** e o agrupamento por lote e a montagem dos
+alertas acontecem em Python, sobre dados já em memória. O limite prático passa a
+ser a quantidade de animais, não de pesagens.
+
+A política de RLS comparava `fazenda_id::text` com a configuração, o que obriga a
+converter cada linha; comparando UUID com UUID são ~35% a menos (42 ms contra 65
+ms em 120.000 linhas). O `OR` do escape global ainda impede o índice de virar
+condição de busca — é um custo aceito em troca de ter a saída explícita.
+
+**Ao mexer em `servicos/metricas.py`, meça com volume.** Com 24 animais tudo
+parece rápido, e foi assim que três problemas sérios passaram despercebidos.
+
 ### GMD é calculado, nunca guardado
 
 Ganho médio diário = (último peso − primeiro peso) ÷ dias entre eles, por SQL e

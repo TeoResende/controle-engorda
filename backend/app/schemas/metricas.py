@@ -66,7 +66,11 @@ class VisaoGeral(BaseModel):
     ultima_pesagem: date | None
     serie: list[PontoDaSerie]
     lotes: list[ResumoLote]
+    # Os mais graves primeiro, limitados. `alertas_total` diz quantos existem —
+    # num rebanho grande e mal manejado, "todos" seriam milhares, e a tela mostra
+    # oito. Trazer o resto seria carga transportada para ser descartada.
     alertas: list[Alerta]
+    alertas_total: int = 0
 
 
 class PesagemDaSerie(BaseModel):
