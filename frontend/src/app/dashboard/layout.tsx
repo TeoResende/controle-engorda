@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { BarraLateral, BarraMovel } from "@/components/barra-lateral";
+import { AplicarMarca } from "@/components/aplicar-marca";
 import { lerSessao } from "@/lib/sessao";
 
 /**
@@ -42,6 +43,7 @@ export default function LayoutDashboard({ children }: { children: React.ReactNod
 
   return (
     <div className="flex min-h-screen">
+      <AplicarMarca />
       <BarraLateral aberta={menuAberto} aoFechar={() => setMenuAberto(false)} />
       <div className="flex min-w-0 flex-1 flex-col">
         <BarraMovel aoAbrir={() => setMenuAberto(true)} />

@@ -31,11 +31,12 @@ type LoteCadastro = {
   desativado_em: string | null;
 };
 
-/** Abaixo disto o lote entra em atenção — mesmo limite do alerta por animal. */
-const GMD_META = 0.5;
+/* A meta vem da fazenda: chutar 0,5 aqui faria o dashboard mostrar "no prazo"
+   para um lote que o alerta do servidor já considera problema. */
 
 export default function Lotes() {
   const [metricas, setMetricas] = useState<Map<string, LoteMetrica> | null>(null);
+  const [gmdMeta, setGmdMeta] = useState(0.5);
   const [lotes, setLotes] = useState<LoteCadastro[] | null>(null);
   const [criando, setCriando] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -49,12 +50,13 @@ export default function Lotes() {
   const carregar = useCallback(async () => {
     const [cadastro, visao] = await Promise.all([
       apiAuth<LoteCadastro[]>(`/lotes?incluir_inativos=${incluirInativos}`).catch(() => []),
-      apiAuth<{ lotes: LoteMetrica[] }>("/metricas/visao-geral?meses=1").catch(() => ({
-        lotes: [] as LoteMetrica[],
-      })),
+      apiAuth<{ lotes: LoteMetrica[]; gmd_meta: string }>(
+        "/metricas/visao-geral?meses=1",
+      ).catch(() => ({ lotes: [] as LoteMetrica[], gmd_meta: "0.5" })),
     ]);
     setLotes(cadastro);
     setMetricas(new Map(visao.lotes.map((l) => [l.nome, l])));
+    setGmdMeta(Number(visao.gmd_meta));
   }, [incluirInativos]);
 
   useEffect(() => {
@@ -146,7 +148,7 @@ export default function Lotes() {
             metricas
               ? ativos.filter((l) => {
                   const m = metricas.get(l.nome);
-                  return m?.gmd_medio !== null && Number(m?.gmd_medio) < GMD_META;
+                  return m?.gmd_medio !== null && Number(m?.gmd_medio) < gmdMeta;
                 }).length
               : null
           }
@@ -192,7 +194,7 @@ export default function Lotes() {
           <Tabela colunas={["Lote", "Formado em", "Animais", "Peso médio", "GMD", "Status", ""]}>
             {lotes.map((l) => {
               const m = metricas?.get(l.nome);
-              const atencao = m?.gmd_medio != null && Number(m.gmd_medio) < GMD_META;
+              const atencao = m?.gmd_medio != null && Number(m.gmd_medio) < gmdMeta;
               return (
                 <Linha key={l.id}>
                   <Celula principal>{l.nome}</Celula>

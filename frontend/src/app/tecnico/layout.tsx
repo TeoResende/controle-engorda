@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AvisoInseguro } from "@/components/aviso-inseguro";
 import { BarraSuperior, NavegacaoInferior } from "@/components/barra-tecnico";
 import { LinkBotao } from "@/components/ui";
+import { AplicarMarca } from "@/components/aplicar-marca";
 import { lerSessao } from "@/lib/sessao";
 import { registrarWorker } from "@/lib/worker";
 import {
@@ -97,6 +98,7 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-fundo">
+      <AplicarMarca />
       <AvisoInseguro />
       {!semMoldura && <BarraSuperior fazenda={identidade?.fazenda ?? "…"} />}
       <div className="flex-1">{children}</div>

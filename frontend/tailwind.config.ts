@@ -12,12 +12,14 @@ const config: Config = {
         corpo: ["var(--fonte-corpo)", "system-ui", "sans-serif"],
       },
       colors: {
-        verde: "#1E4B3B",
-        lima: "#C6D400",
-        fundo: "#F6F7F2",
-        // Tons derivados, para não espalhar opacidade mágica pelo código.
-        "verde-claro": "#2C6B54",
-        borda: "#E4E8DF",
+        // `<alpha-value>` é o que permite `text-verde/70` continuar funcionando
+        // com a cor vinda de variável CSS — por isso os canais separados em
+        // globals.css, e não hex.
+        verde: "rgb(var(--cor-verde) / <alpha-value>)",
+        "verde-claro": "rgb(var(--cor-verde-claro) / <alpha-value>)",
+        lima: "rgb(var(--cor-lima) / <alpha-value>)",
+        fundo: "rgb(var(--cor-fundo) / <alpha-value>)",
+        borda: "rgb(var(--cor-borda) / <alpha-value>)",
       },
     },
   },

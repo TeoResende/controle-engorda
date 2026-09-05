@@ -793,6 +793,51 @@ No cron:
 
 Testado de ponta a ponta: 126 pesagens antes, 126 depois, RLS e papéis intactos.
 
+## 8.9. Identidade visual e limites por fazenda
+
+### Cores
+
+`cor_primaria`, `cor_destaque` e `cor_fundo` na fazenda, em hex. Nulas
+significam **"usar o padrão do sistema"** — e isso é diferente de gravar o padrão
+copiado: quando a referência mudar, só quem escolheu cor própria fica com a
+antiga.
+
+A paleta vive em **canais RGB** em `globals.css` (`--cor-verde: 30 75 59`), não
+em hex. O motivo é prático: o Tailwind precisa compor opacidade
+(`text-verde/70`, usado em dezenas de telas) e para isso a cor tem que chegar
+como canais. Trocar a marca é reescrever variáveis em tempo de execução
+(`lib/marca.ts`).
+
+Tons derivados — o hover do botão e a cor da borda — são calculados a partir das
+escolhidas, para não obrigar quem configura a acertar cinco cores.
+
+**A pré-visualização é o próprio app**: mexer no seletor repinta a tela na hora.
+Miniatura de amostra mentiria — o que importa é como o verde escolhido se
+comporta atrás do texto branco do cabeçalho, não num quadradinho.
+
+### Logo
+
+Vai para o MinIO com a chave prefixada por fazenda, como os áudios, e é servida
+pela API — link direto quebraria o isolamento por tenant nos arquivos. PNG, JPG,
+WEBP ou SVG até 512 KB. Sem logo, o cabeçalho mostra o nome da fazenda.
+
+A marca é guardada no IndexedDB junto com a identidade do usuário: no curral sem
+sinal, buscar da API deixaria o cabeçalho vazio e o app abriria com as cores
+padrão antes de trocar de tema no meio do carregamento.
+
+**O ícone do PWA continua único por instalação.** O manifesto é do domínio, não
+da fazenda — num deploy multi-fazenda, o ícone instalado no celular não pode
+variar por tenant. Personalizar isso exigiria manifesto dinâmico por
+subdomínio, o que só faz sentido com domínio próprio por cliente (M9).
+
+### Limites de alerta
+
+`gmd_meta` e `dias_sem_pesagem` também moram na fazenda: confinamento e pasto não
+se comparam com o mesmo número, e um valor fixo no código faria uma das duas
+parecer sempre ruim. A visão geral **devolve os limites junto com os dados** —
+se a tela chutasse 0,5 e a fazenda usasse 0,8, o dashboard mostraria "no prazo"
+para um lote que o alerta do servidor já considera problema.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.

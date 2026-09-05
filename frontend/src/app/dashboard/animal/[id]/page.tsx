@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { AudioObservacao } from "@/components/audio-observacao";
+import { CorrigirPesagem } from "@/components/corrigir-pesagem";
+import { EditarAnimal } from "@/components/editar-animal";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { Brinco } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
 import { apiAuth } from "@/lib/api";
+import { lerSessao } from "@/lib/sessao";
 import {
   data as formatarData,
   gmd as formatarGmd,
@@ -30,6 +33,7 @@ type Pesagem = {
 
 type Detalhe = {
   brinco: string;
+  lote_id: string | null;
   nome: string | null;
   raca: string | null;
   porte: string | null;
@@ -51,11 +55,17 @@ export default function DetalheAnimal() {
   const [dados, setDados] = useState<Detalhe | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
-  useEffect(() => {
+  const sessao = lerSessao();
+  // Cliente é somente leitura: o servidor recusaria, e a tela não oferece.
+  const podeEditar = sessao?.papel !== "cliente" || sessao?.admin_master;
+
+  const carregar = useCallback(() => {
     apiAuth<Detalhe>(`/metricas/animal/${id}`)
       .then(setDados)
       .catch((e) => setErro(e instanceof Error ? e.message : "Não consegui carregar"));
   }, [id]);
+
+  useEffect(carregar, [carregar]);
 
   if (erro) return <Aviso tom="erro">{erro}</Aviso>;
 
@@ -121,6 +131,11 @@ export default function DetalheAnimal() {
             {dados.lote && <Chip>{dados.lote}</Chip>}
           </div>
         </div>
+        {podeEditar && (
+          <div className="ml-auto print:hidden">
+            <EditarAnimal animalId={id} animal={dados} aoSalvar={carregar} />
+          </div>
+        )}
       </Cartao>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -177,7 +192,16 @@ export default function DetalheAnimal() {
             descricao="A primeira pesagem aparece aqui assim que o técnico registrar."
           />
         ) : (
-          <Tabela colunas={["Data", "Peso", "Variação", "Técnico", "Observação"]}>
+          <Tabela
+            colunas={[
+              "Data",
+              "Peso",
+              "Variação",
+              "Técnico",
+              "Observação",
+              ...(podeEditar ? [""] : []),
+            ]}
+          >
             {[...dados.pesagens].reverse().map((p, i) => (
               <Linha key={`${p.data}-${i}`}>
                 <Celula principal>{formatarData(p.data)}</Celula>
@@ -207,6 +231,16 @@ export default function DetalheAnimal() {
                     )}
                   </span>
                 </Celula>
+                {podeEditar && (
+                  <Celula className="print:hidden md:text-right">
+                    <CorrigirPesagem
+                      pesagemId={p.pesagem_id}
+                      peso={p.peso_kg}
+                      data={p.data}
+                      aoMudar={carregar}
+                    />
+                  </Celula>
+                )}
               </Linha>
             ))}
           </Tabela>

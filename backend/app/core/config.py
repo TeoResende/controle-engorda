@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     audio_max_segundos: int = 60
     audio_max_bytes: int = 2 * 1024 * 1024
 
+    # --- Identidade visual ---
+    # Logo é exibida em cabeçalho pequeno; acima disso é peso sem ganho visual.
+    logo_max_bytes: int = 512 * 1024
+
     def _url(self, usuario: str, senha: str, banco: str | None = None) -> str:
         return (
             f"postgresql+asyncpg://{usuario}:{senha}"

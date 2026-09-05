@@ -5,6 +5,9 @@ import { useId, useState } from "react";
 /**
  * Gráfico de linha em SVG, escrito à mão.
  *
+ * As cores vêm das variáveis da marca, não de hex fixo: quando a fazenda troca
+ * a paleta, o gráfico acompanha em vez de ficar verde no meio de um tema azul.
+ *
  * Uma biblioteca custaria ~100 KB de bundle para desenhar uma linha, e o
  * dashboard precisa abrir rápido em conexão de fazenda.
  *
@@ -84,8 +87,8 @@ export function GraficoDeLinha({
         >
           <defs>
             <linearGradient id={`area-${id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C6D400" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#C6D400" stopOpacity={0.04} />
+              <stop offset="0%" stopColor="rgb(var(--cor-lima))" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="rgb(var(--cor-lima))" stopOpacity={0.04} />
             </linearGradient>
           </defs>
 
@@ -96,7 +99,7 @@ export function GraficoDeLinha({
                 x2={L - M.direita}
                 y1={y(v)}
                 y2={y(v)}
-                stroke="#1E4B3B"
+                stroke="rgb(var(--cor-verde))"
                 strokeOpacity={0.1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -105,7 +108,7 @@ export function GraficoDeLinha({
                 y={y(v) + 6}
                 fontSize={18}
                 textAnchor="end"
-                fill="#1E4B3B"
+                fill="rgb(var(--cor-verde))"
                 fillOpacity={0.45}
               >
                 {Math.round(v)}
@@ -117,7 +120,7 @@ export function GraficoDeLinha({
           <path
             d={caminho}
             fill="none"
-            stroke="#1E4B3B"
+            stroke="rgb(var(--cor-verde))"
             strokeWidth={2.5}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -130,7 +133,7 @@ export function GraficoDeLinha({
                 cx={x(i)}
                 cy={y(p.valor)}
                 r={ativo === i ? 9 : 5}
-                fill={ativo === i ? "#C6D400" : "#1E4B3B"}
+                fill={ativo === i ? "rgb(var(--cor-lima))" : "rgb(var(--cor-verde))"}
                 stroke="#fff"
                 strokeWidth={2}
               />
@@ -158,7 +161,7 @@ export function GraficoDeLinha({
                 x={x(i)}
                 y={A - 14}
                 fontSize={18}
-                fill="#1E4B3B"
+                fill="rgb(var(--cor-verde))"
                 fillOpacity={0.55}
                 textAnchor="middle"
               >

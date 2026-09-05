@@ -17,7 +17,7 @@ from decimal import Decimal
 from sqlalchemy import Date, Numeric, and_, case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Animal, Lote, Pesagem, StatusAnimal, Usuario
+from app.models import Animal, Fazenda, Lote, Pesagem, StatusAnimal, Usuario
 from app.schemas.metricas import (
     Alerta,
     ObservacaoRecente,
@@ -29,10 +29,21 @@ from app.schemas.metricas import (
     VisaoGeral,
 )
 
-# Abaixo disso o animal está ganhando pouco para engorda e alguém precisa olhar.
+# Padrões, usados quando a fazenda não definiu os próprios. Confinamento e pasto
+# não se comparam com o mesmo número — por isso os limites moram na fazenda.
 GMD_MINIMO = Decimal("0.500")
-# Sem pesagem há mais de 45 dias o acompanhamento perdeu o fio.
 DIAS_SEM_PESAGEM = 45
+
+
+async def _limites(sessao: AsyncSession, fazenda_id: uuid.UUID) -> tuple[Decimal, int]:
+    linha = (
+        await sessao.execute(
+            select(Fazenda.gmd_meta, Fazenda.dias_sem_pesagem).where(Fazenda.id == fazenda_id)
+        )
+    ).first()
+    if linha is None:
+        return GMD_MINIMO, DIAS_SEM_PESAGEM
+    return Decimal(linha[0]), int(linha[1])
 
 
 def _base_pesagens(fazenda_id: uuid.UUID):
@@ -130,7 +141,11 @@ async def visao_geral(sessao: AsyncSession, fazenda_id: uuid.UUID, meses: int = 
         )
     )
 
+    gmd_meta, dias_limite = await _limites(sessao, fazenda_id)
+
     return VisaoGeral(
+        gmd_meta=gmd_meta,
+        dias_sem_pesagem=dias_limite,
         animais_ativos=animais_ativos or 0,
         animais_pesados=totais[0] or 0,
         peso_medio=_arredondar(totais[1]),
@@ -209,8 +224,9 @@ async def _lotes(sessao: AsyncSession, fazenda_id: uuid.UUID) -> list[ResumoLote
 
 async def _alertas(sessao: AsyncSession, fazenda_id: uuid.UUID) -> list[Alerta]:
     """Três coisas que o pecuarista precisa ver sem procurar."""
+    gmd_meta, dias_limite = await _limites(sessao, fazenda_id)
     resumo = _resumo_por_animal(fazenda_id).subquery()
-    limite_sem_pesagem = date.today() - timedelta(days=DIAS_SEM_PESAGEM)
+    limite_sem_pesagem = date.today() - timedelta(days=dias_limite)
 
     linhas = await sessao.execute(
         select(
@@ -238,13 +254,13 @@ async def _alertas(sessao: AsyncSession, fazenda_id: uuid.UUID) -> list[Alerta]:
                     valor=_arredondar(ganho),
                 )
             )
-        elif gmd is not None and Decimal(gmd) < GMD_MINIMO:
+        elif gmd is not None and Decimal(gmd) < gmd_meta:
             alertas.append(
                 Alerta(
                     tipo="gmd_baixo",
                     animal_id=animal_id,
                     brinco=brinco,
-                    mensagem=f"Ganhando {Decimal(gmd):.2f} kg/dia (mínimo {GMD_MINIMO})",
+                    mensagem=f"Ganhando {Decimal(gmd):.2f} kg/dia (meta {gmd_meta:.2f})",
                     valor=_arredondar(gmd, 3),
                 )
             )

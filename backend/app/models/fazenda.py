@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Enum as SAEnum
-from sqlalchemy import ForeignKey, String, UniqueConstraint
+from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -24,8 +25,32 @@ class Fazenda(Desativavel, Base):
     proprietario: Mapped[str | None] = mapped_column(String(160))
     endereco: Mapped[str | None] = mapped_column(String(300))
     plano: Mapped[str] = mapped_column(String(40), default="basico", nullable=False)
+
+    # Limites dos alertas. Ficam por fazenda porque a meta de ganho depende do
+    # sistema de criação: confinamento e pasto não se comparam com o mesmo
+    # número, e um valor fixo no código faria uma das duas parecer sempre ruim.
+    gmd_meta: Mapped[Decimal] = mapped_column(
+        Numeric(4, 3), default=Decimal("0.500"), nullable=False
+    )
+    dias_sem_pesagem: Mapped[int] = mapped_column(default=45, nullable=False)
+
+    # --- Identidade visual ---
+    # Cores em hex (#RRGGBB). Nulas significam "usar o padrão do sistema" — o
+    # que é diferente de guardar o padrão copiado: quando a referência mudar, só
+    # quem escolheu uma cor própria fica com a antiga.
+    cor_primaria: Mapped[str | None] = mapped_column(String(7))
+    cor_destaque: Mapped[str | None] = mapped_column(String(7))
+    cor_fundo: Mapped[str | None] = mapped_column(String(7))
+    # Chave do objeto no MinIO, como nos áudios das pesagens.
+    logo_url: Mapped[str | None] = mapped_column(String(500))
     criado_em: Mapped[datetime] = criado_em_col()
     desativado_em: Mapped[datetime | None] = desativado_em_col()
+
+    @property
+    def tem_logo(self) -> bool:
+        """A resposta expõe isto e não a chave do objeto: o caminho no MinIO é
+        detalhe interno, e a tela só precisa saber se deve buscar a imagem."""
+        return bool(self.logo_url)
 
     vinculos: Mapped[list["UsuarioFazenda"]] = relationship(
         back_populates="fazenda", cascade="all, delete-orphan"

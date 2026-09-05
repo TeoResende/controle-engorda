@@ -73,3 +73,8 @@ async def apagar(chave: str) -> None:
     await asyncio.to_thread(
         _cliente().delete_object, Bucket=settings.minio_bucket, Key=chave
     )
+
+
+def chave_da_logo(fazenda_id, extensao: str = "png") -> str:
+    """Prefixo por fazenda, como nos áudios: facilita cota e expurgo por tenant."""
+    return f"fazendas/{fazenda_id}/marca/logo.{extensao}"

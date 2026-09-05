@@ -5,6 +5,23 @@
 @layer base {
   :root {
     color-scheme: light;
+
+    /*
+     * Paleta da marca, em canais RGB separados.
+     *
+     * Não é hex por um motivo prático: o Tailwind precisa compor opacidade
+     * (`text-verde/70`, usado em dezenas de telas), e para isso a cor tem que
+     * chegar como canais, não como `#1E4B3B`. Com isto, trocar a marca é
+     * reescrever quatro variáveis em tempo de execução.
+     *
+     * Os valores abaixo são o padrão (referência Coopervass); cada fazenda pode
+     * sobrescrevê-los em Configurações.
+     */
+    --cor-verde: 30 75 59;
+    --cor-verde-claro: 44 107 84;
+    --cor-lima: 198 212 0;
+    --cor-fundo: 246 247 242;
+    --cor-borda: 228 232 223;
   }
 
   html {
@@ -16,6 +33,8 @@
   body {
     /* Área segura do aparelho: entalhe em cima, barra de gestos embaixo. */
     padding-top: env(safe-area-inset-top);
+    background-color: rgb(var(--cor-fundo));
+    color: rgb(var(--cor-verde));
   }
 
   /*
@@ -26,7 +45,7 @@
    * onde se está sem enxergar o cursor.
    */
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: 2px solid #1e4b3b;
+    outline: 2px solid rgb(var(--cor-verde));
     outline-offset: 2px;
     border-radius: 0.5rem;
   }
@@ -34,7 +53,7 @@
   /* Fundo lima escuro precisa de anel claro para ter contraste. */
   .bg-verde :where(a, button):focus-visible,
   .bg-lima:focus-visible {
-    outline-color: #c6d400;
+    outline-color: rgb(var(--cor-lima));
   }
 
   /* Números tabulares: coluna de peso não “dança” ao atualizar. */

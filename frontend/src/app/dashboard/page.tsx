@@ -22,6 +22,8 @@ type Alerta = {
 };
 
 type VisaoGeral = {
+  gmd_meta: string;
+  dias_sem_pesagem: number;
   animais_ativos: number;
   animais_pesados: number;
   peso_medio: string | null;
@@ -39,8 +41,8 @@ type VisaoGeral = {
   alertas: Alerta[];
 };
 
-/** Abaixo disto o lote entra em atenção — mesmo limite do alerta por animal. */
-const GMD_META = 0.5;
+/* A meta vem da fazenda: chutar 0,5 aqui faria o dashboard mostrar "no prazo"
+   para um lote que o alerta do servidor já considera problema. */
 
 /** Tela 6 — Visão geral. */
 export default function Dashboard() {
@@ -175,7 +177,7 @@ export default function Dashboard() {
         ) : (
           <Tabela colunas={["Lote", "Animais", "GMD", "Status", ""]}>
             {dados.lotes.map((l) => {
-              const atencao = l.gmd_medio !== null && Number(l.gmd_medio) < GMD_META;
+              const atencao = l.gmd_medio !== null && Number(l.gmd_medio) < Number(dados.gmd_meta);
               return (
                 <Linha key={l.lote_id ?? l.nome}>
                   <Celula principal>{l.nome}</Celula>

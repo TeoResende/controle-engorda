@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Casa, Brinco, Pessoa, Reticencias, SemSinal } from "@/components/icones";
+import { API_URL } from "@/lib/api";
 import { db } from "@/lib/db";
+import { marcaGuardada } from "@/lib/marca";
 import { sincronizar } from "@/lib/sync";
 
 /**
@@ -17,6 +19,13 @@ import { sincronizar } from "@/lib/sync";
  */
 export function BarraSuperior({ fazenda }: { fazenda: string }) {
   const [online, setOnline] = useState(true);
+  const [temLogo, setTemLogo] = useState(false);
+
+  useEffect(() => {
+    // A logo vem do que está guardado no aparelho: no curral sem sinal, buscar
+    // da API deixaria o cabeçalho vazio.
+    void marcaGuardada().then((m) => m && setTemLogo(m.tem_logo));
+  }, []);
 
   useEffect(() => {
     const atualizar = () => setOnline(navigator.onLine);
@@ -36,8 +45,19 @@ export function BarraSuperior({ fazenda }: { fazenda: string }) {
   return (
     <header className="sticky top-0 z-10 flex items-center justify-between border-b border-borda bg-white px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
-        <Casa className="h-5 w-5 shrink-0 text-verde" />
-        <span className="truncate font-titulo font-extrabold text-verde">{fazenda}</span>
+        {temLogo ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={`${API_URL}/fazendas/atual/logo`}
+            alt={fazenda}
+            className="max-h-7 max-w-[9rem] object-contain object-left"
+          />
+        ) : (
+          <>
+            <Casa className="h-5 w-5 shrink-0 text-verde" />
+            <span className="truncate font-titulo font-extrabold text-verde">{fazenda}</span>
+          </>
+        )}
       </div>
       <EtiquetaConexao online={online} />
     </header>

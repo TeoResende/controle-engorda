@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Celula, Linha, Tabela } from "@/components/tabela";
+import { IdentidadeVisual } from "@/components/identidade-visual";
 import { TrocarSenha } from "@/components/trocar-senha";
 import { Aviso, Botao, Campo, Cartao, Chip, Esqueleto, Selecao } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
@@ -15,6 +16,8 @@ type Fazenda = {
   proprietario: string | null;
   endereco: string | null;
   plano: string;
+  gmd_meta: string;
+  dias_sem_pesagem: number;
   criado_em: string;
 };
 
@@ -37,6 +40,7 @@ export default function Configuracoes() {
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [convidando, setConvidando] = useState(false);
+  const [editandoFazenda, setEditandoFazenda] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
   const sessao = lerSessao();
@@ -129,11 +133,75 @@ export default function Configuracoes() {
         <p className="text-sm text-verde/60">Dados da fazenda e quem tem acesso</p>
       </header>
 
+      <IdentidadeVisual />
+
       <TrocarSenha />
 
       <Cartao>
-        <h2 className="font-titulo font-extrabold text-verde">Fazenda</h2>
-        {!fazenda ? (
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h2 className="font-titulo font-extrabold text-verde">Fazenda</h2>
+          {fazenda && !semPermissao && (
+            <button
+              onClick={() => setEditandoFazenda((v) => !v)}
+              className="rounded-xl border border-borda px-4 py-2 font-titulo text-sm font-bold text-verde"
+            >
+              {editandoFazenda ? "Cancelar" : "Editar"}
+            </button>
+          )}
+        </div>
+        {editandoFazenda && fazenda ? (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              const campos = new FormData(e.currentTarget);
+              await executar(
+                () =>
+                  apiAuth("/fazendas/atual", {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                      nome: String(campos.get("nome")),
+                      proprietario: String(campos.get("proprietario") || "") || null,
+                      endereco: String(campos.get("endereco") || "") || null,
+                      gmd_meta: String(campos.get("gmd_meta")).replace(",", "."),
+                      dias_sem_pesagem: Number(campos.get("dias_sem_pesagem")),
+                    }),
+                  }),
+                "Dados da fazenda atualizados.",
+              );
+              setFazenda(await apiAuth<Fazenda>("/fazendas/atual"));
+              setEditandoFazenda(false);
+            }}
+            className="mt-4 grid gap-3 sm:grid-cols-2"
+          >
+            <Campo rotulo="Nome" name="nome" defaultValue={fazenda.nome} required />
+            <Campo
+              rotulo="Proprietário"
+              name="proprietario"
+              defaultValue={fazenda.proprietario ?? ""}
+            />
+            <div className="sm:col-span-2">
+              <Campo rotulo="Endereço" name="endereco" defaultValue={fazenda.endereco ?? ""} />
+            </div>
+            <Campo
+              rotulo="Meta de ganho diário (kg/dia)"
+              name="gmd_meta"
+              inputMode="decimal"
+              defaultValue={fazenda.gmd_meta}
+              dica="Abaixo disso o animal entra em alerta. Confinamento e pasto pedem metas diferentes."
+            />
+            <Campo
+              rotulo="Alertar sem pesagem após (dias)"
+              name="dias_sem_pesagem"
+              inputMode="numeric"
+              defaultValue={String(fazenda.dias_sem_pesagem)}
+            />
+            <div className="sm:col-span-2">
+              <Botao type="submit" variante="destaque" carregando={ocupado}>
+                Salvar dados da fazenda
+              </Botao>
+            </div>
+          </form>
+        ) : !fazenda ? (
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i}>
@@ -149,6 +217,8 @@ export default function Configuracoes() {
                 ["Nome", fazenda.nome],
                 ["Proprietário", fazenda.proprietario ?? "—"],
                 ["Endereço", fazenda.endereco ?? "—"],
+                ["Meta de ganho diário", `${fazenda.gmd_meta} kg/dia`],
+                ["Alerta sem pesagem", `${fazenda.dias_sem_pesagem} dias`],
                 ["Cadastrada em", formatarData(fazenda.criado_em.slice(0, 10))],
               ] as [string, string][]
             ).map(([rotulo, valor]) => (

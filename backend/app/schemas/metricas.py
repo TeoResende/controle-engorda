@@ -53,6 +53,11 @@ class ObservacaoRecente(BaseModel):
 
 
 class VisaoGeral(BaseModel):
+    # Devolvidos junto para a tela não repetir o limite por conta própria — se
+    # ela chutar 0,5 e a fazenda usar 0,8, o dashboard mostra "no prazo" para um
+    # lote que o alerta já considera problema.
+    gmd_meta: Decimal
+    dias_sem_pesagem: int
     animais_ativos: int
     animais_pesados: int
     peso_medio: Decimal | None
