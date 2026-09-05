@@ -7,6 +7,7 @@ __pycache__/
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 letsencrypt/
 # Certificados de desenvolvimento: chaves privadas nunca vão para o repositório.
 # Recrie com ./traefik/gerar-certificados.sh
