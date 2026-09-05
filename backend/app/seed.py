@@ -25,11 +25,24 @@ from app.models import (
     Papel,
     Pesagem,
     StatusAnimal,
+    StatusTranscricao,
     Usuario,
     UsuarioFazenda,
 )
 
 SENHA_PADRAO = "engorda123"
+
+# Observações de campo plausíveis. Sem elas o painel de observações e a
+# exportação nasceriam vazios, e ninguém veria que existem.
+OBSERVACOES = [
+    "Animal manso, sem alteração",
+    "Andando com leve claudicação na pata esquerda",
+    "Carrapato na região do pescoço, aplicado carrapaticida",
+    "Comendo bem, pelo brilhante",
+    "Apartado do lote por briga, sem ferimento",
+    "Casco dianteiro precisa de aparo",
+    "Recusou o cocho hoje, acompanhar",
+]
 
 
 async def limpar(session) -> None:
@@ -146,6 +159,13 @@ async def semear() -> None:
                             + timedelta(hours=8),
                             datetime.now(timezone.utc) - timedelta(minutes=1),
                         )
+                        # Uma em cada quatro pesagens traz observação — é mais
+                        # ou menos a proporção que o técnico registra na prática.
+                        observacao = (
+                            random.choice(OBSERVACOES)
+                            if random.random() < 0.25
+                            else None
+                        )
                         session.add(
                             Pesagem(
                                 id=uuid.uuid4(),  # em produção vem do celular
@@ -155,6 +175,10 @@ async def semear() -> None:
                                 peso_kg=Decimal(str(_curva_de_peso(peso_inicial, gmd, 28 * k))),
                                 tecnico_id=tecnico.id,
                                 coletado_em=coletado,
+                                observacao_texto=observacao,
+                                status_transcricao=(
+                                    StatusTranscricao.concluida if observacao else None
+                                ),
                             )
                         )
                         total_pesagens += 1

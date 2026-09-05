@@ -55,3 +55,72 @@
     }
   }
 }
+
+/*
+ * Impressão — é como sai o PDF.
+ *
+ * O botão "Imprimir / PDF" usa o motor do próprio navegador em vez de uma
+ * biblioteca no servidor: o resultado é melhor, não pesa a imagem do backend
+ * com Cairo/Pango, e a pessoa escolhe o papel. Em troca, a página precisa saber
+ * se comportar no papel.
+ */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* Navegação, botões e campos não existem no papel. */
+  aside,
+  nav,
+  header button,
+  input,
+  select,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Cartões viram blocos com moldura fina; sombra e canto arredondado só
+     gastam tinta. */
+  section {
+    border-radius: 0 !important;
+    border-color: #d8ddd2 !important;
+    break-inside: avoid;
+  }
+
+  /* Tabela no papel é tabela, mesmo que na tela vire cartão no celular. */
+  thead {
+    display: table-header-group !important;
+  }
+
+  tbody {
+    display: table-row-group !important;
+  }
+
+  tr {
+    display: table-row !important;
+    border: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    break-inside: avoid;
+  }
+
+  td {
+    display: table-cell !important;
+    padding: 4px 8px !important;
+    text-align: left !important;
+  }
+
+  /* O rótulo da coluna é para o formato de cartão; no papel o cabeçalho basta. */
+  td > span:first-child.uppercase {
+    display: none !important;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

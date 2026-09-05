@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Caixa, Engrenagem, Grade, Pessoa } from "@/components/icones";
+import { Balao, Caixa, Engrenagem, Grade, Pessoa } from "@/components/icones";
 import { apiAuth } from "@/lib/api";
 import { iniciais } from "@/lib/formato";
 import { limparSessao, salvarSessao, type Sessao } from "@/lib/sessao";
@@ -21,6 +21,7 @@ const ITENS = [
   { href: "/dashboard", rotulo: "Visão geral", Icone: Grade },
   { href: "/dashboard/animais", rotulo: "Animais", Icone: Pessoa },
   { href: "/dashboard/lotes", rotulo: "Lotes", Icone: Caixa },
+  { href: "/dashboard/observacoes", rotulo: "Observações", Icone: Balao },
   { href: "/dashboard/configuracoes", rotulo: "Configurações", Icone: Engrenagem },
 ];
 

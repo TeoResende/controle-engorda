@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.animais import router as animais_router
 from app.api.auth import router as auth_router
+from app.api.exportar import router as exportar_router
 from app.api.fazendas import router as fazendas_router
 from app.api.health import router as health_router
 from app.api.lotes import router as lotes_router
@@ -36,6 +37,7 @@ app.include_router(lotes_router)
 app.include_router(animais_router)
 app.include_router(pesagens_router)
 app.include_router(metricas_router)
+app.include_router(exportar_router)
 
 
 @app.get("/")

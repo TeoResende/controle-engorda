@@ -37,6 +37,21 @@ class ResumoDoDia(BaseModel):
     lote_ativo_id: uuid.UUID | None
 
 
+class ObservacaoRecente(BaseModel):
+    """Observação registrada numa pesagem, com o animal a que se refere."""
+
+    pesagem_id: uuid.UUID
+    animal_id: uuid.UUID
+    brinco: str
+    nome_animal: str | None
+    data: date
+    peso_kg: Decimal
+    texto: str
+    tem_audio: bool
+    status_transcricao: str | None
+    tecnico_nome: str | None
+
+
 class VisaoGeral(BaseModel):
     animais_ativos: int
     animais_pesados: int
@@ -50,6 +65,8 @@ class VisaoGeral(BaseModel):
 
 
 class PesagemDaSerie(BaseModel):
+    # Necessário para tocar o áudio original da observação a partir da tela.
+    pesagem_id: uuid.UUID
     data: date
     peso_kg: Decimal
     # Variação em relação à pesagem anterior. Nula na primeira, que não tem

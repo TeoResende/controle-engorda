@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Cartao, Chip, Esqueleto, Vazio } from "@/components/ui";
@@ -59,6 +60,14 @@ function Conteudo() {
             {lote && " neste lote"}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <BotaoExportar
+            caminho={`/exportar/animais.csv${lote ? `?lote_id=${lote}` : ""}`}
+            rotulo="Exportar rebanho"
+          />
+          <BotaoImprimir />
+        </div>
+
         <div className="relative w-full max-w-xs">
           <Lupa className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-verde/40" />
           <input

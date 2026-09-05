@@ -5,6 +5,8 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
+import { AudioObservacao } from "@/components/audio-observacao";
+import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { Brinco } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
@@ -17,6 +19,7 @@ import {
 } from "@/lib/formato";
 
 type Pesagem = {
+  pesagem_id: string;
   data: string;
   peso_kg: string;
   variacao: string | null;
@@ -156,7 +159,18 @@ export default function DetalheAnimal() {
       </div>
 
       <Cartao>
-        <h2 className="mb-2 font-titulo font-extrabold text-verde">Histórico de pesagens</h2>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-titulo font-extrabold text-verde">Histórico de pesagens</h2>
+          {dados.pesagens.length > 0 && (
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <BotaoExportar
+                caminho={`/exportar/pesagens.csv?animal_id=${id}`}
+                rotulo="Exportar CSV"
+              />
+              <BotaoImprimir />
+            </div>
+          )}
+        </div>
         {dados.pesagens.length === 0 ? (
           <Vazio
             titulo="Este animal ainda não foi pesado"
@@ -184,8 +198,14 @@ export default function DetalheAnimal() {
                 </Celula>
                 <Celula rotulo="Técnico">{p.tecnico_nome ?? "—"}</Celula>
                 <Celula rotulo="Observação" className="text-verde/80">
-                  {p.tem_audio && <span className="mr-1 text-verde/45">🎙</span>}
-                  {p.observacao_texto ?? "—"}
+                  <span className="flex flex-col items-end gap-1.5 md:items-start">
+                    <span>{p.observacao_texto ?? "—"}</span>
+                    {p.tem_audio && (
+                      <span className="print:hidden">
+                        <AudioObservacao pesagemId={p.pesagem_id} />
+                      </span>
+                    )}
+                  </span>
                 </Celula>
               </Linha>
             ))}

@@ -95,3 +95,9 @@ export const SemSinal = ({ className = base }: Props) => (
     <path d="M9 16a5 5 0 0 1 6 0" /><path d="M12 20h.01" />
   </svg>
 );
+
+export const Balao = ({ className = base }: Props) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.6A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8Z" />
+  </svg>
+);

@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Animal, Lote, Pesagem, StatusAnimal, Usuario
 from app.schemas.metricas import (
     Alerta,
+    ObservacaoRecente,
     ResumoDoDia,
     DetalheAnimal,
     PesagemDaSerie,
@@ -262,6 +263,50 @@ async def _alertas(sessao: AsyncSession, fazenda_id: uuid.UUID) -> list[Alerta]:
     return alertas
 
 
+async def observacoes_recentes(
+    sessao: AsyncSession, fazenda_id: uuid.UUID, limite: int = 30
+) -> list[ObservacaoRecente]:
+    """Observações das pesagens, das mais recentes para as mais antigas.
+
+    O técnico anota "mancando da pata esquerda" e isso ficava enterrado no
+    histórico de um animal — quem cuida do rebanho nunca via. É informação de
+    saúde chegando pelo caminho do peso, e precisa de um lugar onde apareça.
+    """
+    linhas = await sessao.execute(
+        select(Pesagem, Animal.brinco, Animal.nome, Usuario.nome)
+        .join(Animal, Animal.id == Pesagem.animal_id)
+        .join(Usuario, Usuario.id == Pesagem.tecnico_id, isouter=True)
+        .where(
+            Pesagem.fazenda_id == fazenda_id,
+            Pesagem.desativado_em.is_(None),
+            Animal.desativado_em.is_(None),
+            # Áudio pendente de transcrição também conta: o gestor precisa saber
+            # que existe uma observação a caminho, não descobrir depois.
+            (Pesagem.observacao_texto.isnot(None))
+            | (Pesagem.observacao_audio_url.isnot(None)),
+        )
+        .order_by(Pesagem.data.desc(), Pesagem.coletado_em.desc())
+        .limit(limite)
+    )
+
+    return [
+        ObservacaoRecente(
+            pesagem_id=p.id,
+            animal_id=p.animal_id,
+            brinco=brinco,
+            nome_animal=nome_animal,
+            data=p.data,
+            peso_kg=p.peso_kg,
+            texto=(p.observacao_texto or "").strip()
+            or ("Áudio aguardando transcrição" if p.observacao_audio_url else ""),
+            tem_audio=bool(p.observacao_audio_url),
+            status_transcricao=p.status_transcricao.value if p.status_transcricao else None,
+            tecnico_nome=tecnico,
+        )
+        for p, brinco, nome_animal, tecnico in linhas
+    ]
+
+
 async def resumo_do_dia(
     sessao: AsyncSession, fazenda_id: uuid.UUID, tecnico_id: uuid.UUID
 ) -> ResumoDoDia:
@@ -360,6 +405,7 @@ async def detalhe_animal(
     for i, (pesagem, tecnico_nome) in enumerate(linhas):
         serie.append(
             PesagemDaSerie(
+                pesagem_id=pesagem.id,
                 data=pesagem.data,
                 peso_kg=pesagem.peso_kg,
                 # Nula na primeira: não há anterior com que comparar.

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { BotaoExportar } from "@/components/exportar";
 import { Lupa } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Botao, Campo, Cartao, Chip, Esqueleto, Kpi, Vazio } from "@/components/ui";
@@ -328,9 +329,20 @@ export default function DetalheLote() {
       )}
 
       <Cartao>
-        <h2 className="mb-3 font-titulo font-extrabold text-verde">
-          Animais no lote {noLote.length > 0 && `(${noLote.length})`}
-        </h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-titulo font-extrabold text-verde">
+            Animais no lote {noLote.length > 0 && `(${noLote.length})`}
+          </h2>
+          {noLote.length > 0 && (
+            <div className="flex flex-wrap gap-2 print:hidden">
+              <BotaoExportar caminho={`/exportar/animais.csv?lote_id=${id}`} rotulo="Rebanho" />
+              <BotaoExportar
+                caminho={`/exportar/pesagens.csv?lote_id=${id}`}
+                rotulo="Pesagens"
+              />
+            </div>
+          )}
+        </div>
 
         {noLote.length === 0 ? (
           <Vazio

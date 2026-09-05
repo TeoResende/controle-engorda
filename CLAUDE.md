@@ -344,7 +344,8 @@ tarefa, e o técnico está com uma mão no celular e outra no animal.
 **Cliente** (barra lateral: Visão geral · Animais · Lotes · Configurações)
 
 `/dashboard` · `/dashboard/animais` (busca e paginação) · `/dashboard/lotes` ·
-`/dashboard/lotes/[id]` (formação do lote) · `/dashboard/animal/[id]` ·
+`/dashboard/lotes/[id]` (formação do lote) · `/dashboard/observacoes` ·
+`/dashboard/animal/[id]` ·
 `/dashboard/configuracoes` (dados da fazenda e equipe; a gestão de membros é área
 de admin e o cliente recebe 403 com aviso). *Relatórios* não entrou: não está no
 escopo do MVP (seção 9).
@@ -626,6 +627,44 @@ senão a coluna de peso dança a cada atualização.
 escala por `viewBox`: o texto mantém proporção em qualquer largura, em vez de
 virar rabisco no desktop e letra gigante no celular. Tem alvo de toque generoso
 por ponto, destaque no hover/foco e legenda de início e fim.
+
+## 8.7. Observações e exportação
+
+### Onde as observações aparecem
+
+Em três lugares, de propósito: no histórico do animal (`/dashboard/animal/[id]`),
+na coluna Observação; em `/dashboard/observacoes`, que é o **registro de campo do
+rebanho inteiro**; e no CSV. O técnico anota "mancando da pata esquerda" e isso
+ficava enterrado no histórico de um animal — é informação de saúde chegando pelo
+caminho do peso, e quem cuida do rebanho precisa de um lugar onde ela apareça
+sozinha.
+
+Áudio ainda não transcrito também entra na lista, marcado: o gestor precisa saber
+que existe observação a caminho, não descobrir depois.
+
+**O áudio original é ouvível** (`components/audio-observacao.tsx`). Não é
+redundante com a transcrição: quando o técnico fala "pata **esquerda**" e o
+modelo escreve "direita", é o áudio que resolve. O `<audio src>` não aponta para
+a API direto — a rota exige cabeçalho de autenticação, então o arquivo é buscado
+como blob e tocado de uma URL local, e só quando a pessoa pede.
+
+### Exportação
+
+`GET /exportar/animais.csv`, `/exportar/pesagens.csv` (filtros `animal_id`,
+`lote_id`, `desde`, `ate`) e `/exportar/observacoes.csv`.
+
+**O CSV é feito para o Excel em português:** separador `;`, vírgula decimal e BOM
+UTF-8. Sem isso a planilha inteira cai numa coluna só e "não" vira "nÃ£o" — o
+produto parece quebrado por um detalhe de formato. A variação entre pesagens já
+vem calculada, para ninguém precisar montar fórmula.
+
+O download passa por `fetch` e não por `<a href>`: a rota exige token, e um link
+simples voltaria 401. O arquivo vira blob e sai por um link temporário.
+
+**PDF sai pelo navegador**, não por biblioteca no servidor. `window.print()` com
+folha de estilo de impressão: o motor de PDF do navegador é melhor que
+WeasyPrint, não pesa a imagem do backend com Cairo/Pango, e a pessoa escolhe o
+papel. No papel, a tabela volta a ser tabela mesmo onde a tela vira cartão.
 
 ## 9. Fora de escopo no MVP (não implementar ainda)
 

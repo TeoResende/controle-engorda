@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
+import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
@@ -94,7 +95,12 @@ export default function Dashboard() {
             Acompanhamento da evolução de peso do rebanho
           </p>
         </div>
-        <form onSubmit={buscar} className="relative w-full max-w-xs">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
+          <BotaoExportar caminho="/exportar/pesagens.csv" rotulo="Exportar pesagens" />
+          <BotaoImprimir />
+        </div>
+
+        <form onSubmit={buscar} className="relative w-full max-w-xs print:hidden">
           <Lupa className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-verde/40" />
           <input
             value={busca}
