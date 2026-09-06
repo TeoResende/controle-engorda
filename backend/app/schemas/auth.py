@@ -28,6 +28,11 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     fazenda_id: uuid.UUID
+    # Nome da fazenda do token. Sem ele, a sessão nascida do login não sabia
+    # dizer em que fazenda o técnico está — só as baixadas por `/auth/sessoes`
+    # traziam o nome, e a tela mostrava "Fazenda" genérico justamente onde
+    # saber disso decide para onde vai o cadastro.
+    fazenda_nome: str | None = None
     papel: Papel
     admin_master: bool = False
 
@@ -36,7 +41,7 @@ class SessaoDaFazenda(BaseModel):
     """Uma sessão pronta para cada fazenda que o usuário atende."""
 
     fazenda_id: uuid.UUID
-    nome: str
+    fazenda_nome: str
     papel: Papel
     access_token: str
     refresh_token: str

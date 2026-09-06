@@ -38,6 +38,12 @@ class AnimalResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    # A fazenda dona do animal. Vem do token, nunca do corpo do pedido — mas
+    # precisa voltar na resposta: sem ela o app tinha que *adivinhar* a que
+    # fazenda pertence o animal que acabou de cadastrar, e a cópia local do
+    # rebanho é indexada por (fazenda, brinco). Adivinhar errado esconde o
+    # animal no aparelho sem erro nenhum.
+    fazenda_id: uuid.UUID
     brinco: str
     nome: str | None
     raca: str | None

@@ -18,14 +18,14 @@ import {
  * exige servidor, e no curral — onde a troca acontece — não há.
  */
 
-function sessao(fazenda_id: string, nome: string): Sessao {
+function sessao(fazenda_id: string, fazenda_nome: string): Sessao {
   return {
     access_token: `token-${fazenda_id}`,
     refresh_token: `refresh-${fazenda_id}`,
     fazenda_id,
     papel: "tecnico",
     admin_master: false,
-    nome,
+    fazenda_nome,
   };
 }
 

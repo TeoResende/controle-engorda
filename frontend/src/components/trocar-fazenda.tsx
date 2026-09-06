@@ -64,7 +64,7 @@ export function TrocarFazenda() {
               >
                 <span className="min-w-0">
                   <span className="block font-titulo font-bold text-verde">
-                    {s.nome ?? "Fazenda"}
+                    {s.fazenda_nome ?? "Fazenda"}
                   </span>
                   <span className="text-xs text-verde/55">
                     {atual ? "aberta agora" : "tocar para abrir"}

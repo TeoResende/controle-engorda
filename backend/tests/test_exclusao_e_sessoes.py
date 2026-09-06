@@ -96,7 +96,7 @@ async def test_sessoes_traz_uma_por_fazenda(client, dados, logar):
     sessoes = (await client.get("/auth/sessoes", headers=h)).json()
 
     assert len(sessoes) == 2
-    assert {s["nome"] for s in sessoes} == {dados["fazenda_a"].nome, dados["fazenda_b"].nome}
+    assert {s["fazenda_nome"] for s in sessoes} == {dados["fazenda_a"].nome, dados["fazenda_b"].nome}
     assert all(s["access_token"] and s["refresh_token"] for s in sessoes)
 
 
@@ -115,14 +115,14 @@ async def test_sessoes_nao_amplia_acesso(client, dados, logar):
     h = await logar(dados["cliente_a"])
     sessoes = (await client.get("/auth/sessoes", headers=h)).json()
 
-    assert [s["nome"] for s in sessoes] == [dados["fazenda_a"].nome]
+    assert [s["fazenda_nome"] for s in sessoes] == [dados["fazenda_a"].nome]
 
 
 async def test_master_recebe_sessao_de_todas(client, dados, logar):
     h = await logar(dados["master"], dados["fazenda_a"].id)
     sessoes = (await client.get("/auth/sessoes", headers=h)).json()
 
-    assert {dados["fazenda_a"].nome, dados["fazenda_b"].nome} <= {s["nome"] for s in sessoes}
+    assert {dados["fazenda_a"].nome, dados["fazenda_b"].nome} <= {s["fazenda_nome"] for s in sessoes}
     assert all(s["papel"] == "admin" for s in sessoes)
 
 

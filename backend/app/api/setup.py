@@ -73,4 +73,4 @@ async def primeiro_acesso(
 
     from app.api.auth import _par_de_tokens
 
-    return _par_de_tokens(usuario, fazenda.id, Papel.admin)
+    return _par_de_tokens(usuario, fazenda.id, fazenda.nome, Papel.admin)

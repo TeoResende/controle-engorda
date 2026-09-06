@@ -425,6 +425,34 @@ servidor. Criar ids locais para animais abriria a porta para dois cadastros do
 mesmo bicho vindos de dois aparelhos, e aí o histórico de peso se parte em dois.
 A pesagem é o que não pode esperar; o cadastro pode.
 
+### A que fazenda o animal pertence
+
+O vínculo vem do **token**, como todo o resto (seção 4) — nunca do corpo do
+pedido. O que estava errado era o entorno dele, em dois pontos:
+
+1. **Nada na tela dizia qual era a fazenda.** Coleta e cadastro rodam sem a
+   moldura, e a barra superior era o único lugar que mostrava onde a pessoa
+   estava. Quem atende duas fazendas cadastrava na que por acaso estivesse
+   aberta — sem erro, sem aviso, e o animal simplesmente não aparecia no rebanho
+   onde deveria estar. `FazendaDaTarefa`
+   (`components/fazenda-da-tarefa.tsx`) põe isso à vista nas duas telas.
+   **Trocar só no cadastro**: na coleta, mudar de fazenda no meio faria o mesmo
+   brinco resolver para outro animal e o peso já digitado iria para o bicho
+   errado — lá a troca é antes de entrar, pelo seletor em *Mais*.
+2. **O app deduzia a fazenda do animal que acabara de criar.** `AnimalResponse`
+   não devolvia `fazenda_id`, então a cópia local era carimbada com
+   `fazendaAtiva()`. A cópia é indexada por `(fazenda, brinco)`: deduzir errado
+   esconde no próprio aparelho o animal recém-cadastrado, e o sintoma aparece só
+   depois, no curral, como "esse brinco não existe". Agora a resposta traz a
+   fazenda e é ela que vai para o IndexedDB.
+
+Para a tela conseguir dizer o nome, ele viaja junto do token: `TokenResponse`
+ganhou `fazenda_nome`. Antes só as sessões baixadas por `/auth/sessoes` traziam o
+nome, e uma sessão nascida do login mostraria "Fazenda" genérico justamente onde
+saber disso decide o destino do cadastro. O campo tem o mesmo nome nos dois
+lugares — `SessaoDaFazenda.nome` virou `fazenda_nome` — porque dois nomes para a
+mesma coisa é como se erra na hora de ler.
+
 ### Motor de sincronização
 
 A ordem é: envia → servidor confirma → **só então** apaga a cópia local. Se a

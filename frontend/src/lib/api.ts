@@ -105,9 +105,10 @@ async function renovar(sessao: Sessao): Promise<Sessao | null> {
       method: "POST",
       body: JSON.stringify({ refresh_token: sessao.refresh_token }),
     });
-    // Preserva o nome da fazenda, que o /auth/refresh não devolve — sem ele o
-    // seletor de fazenda ficaria com um item sem rótulo.
-    salvarSessao({ ...nova, nome: sessao.nome });
+    // O nome da fazenda vem na renovação, mas o que já estava guardado serve de
+    // rede: sem ele, o seletor e as telas de tarefa ficariam sem rótulo — e é
+    // justamente o rótulo que diz para onde vai o que a pessoa registrar.
+    salvarSessao({ ...nova, fazenda_nome: nova.fazenda_nome ?? sessao.fazenda_nome });
     return nova;
   } catch {
     return null;

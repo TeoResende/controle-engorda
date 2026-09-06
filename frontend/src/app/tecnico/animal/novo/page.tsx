@@ -3,11 +3,11 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
+import { FazendaDaTarefa } from "@/components/fazenda-da-tarefa";
 import { Brinco, Voltar } from "@/components/icones";
 import { AreaDeTexto, Aviso, Botao, Campo, Selecao } from "@/components/ui";
 import { apiAuth, ErroApi, SemConexao } from "@/lib/api";
 import { db } from "@/lib/db";
-import { fazendaAtiva } from "@/lib/sessao";
 
 /**
  * Tela 5 — Cadastro de animal.
@@ -22,6 +22,9 @@ const PORTES = ["Pequeno", "Médio", "Grande"];
 
 type AnimalCriado = {
   id: string;
+  /** Carimbada pelo servidor a partir do token. É a fonte da verdade sobre a
+   *  que fazenda o animal pertence — o app não deve deduzir. */
+  fazenda_id: string;
   brinco: string;
   nome: string | null;
   raca: string | null;
@@ -76,7 +79,10 @@ function Conteudo() {
       // Entra na cópia local na hora: a coleta seguinte já encontra o animal.
       await db.animais.put({
         id: criado.id,
-        fazenda_id: fazendaAtiva() ?? "",
+        // Do servidor, não de `fazendaAtiva()`: a cópia local é indexada por
+        // (fazenda, brinco), e um palpite errado esconderia o animal recém
+        // cadastrado no próprio aparelho, sem erro nenhum.
+        fazenda_id: criado.fazenda_id,
         brinco: criado.brinco,
         nome: criado.nome,
         raca: criado.raca,
@@ -110,6 +116,11 @@ function Conteudo() {
       </header>
 
       <form onSubmit={salvar} className="flex flex-1 flex-col gap-4 p-5">
+        {/* De qual fazenda vai ser este animal — decidido antes de salvar, e
+            à vista: sem isto, quem atende duas cadastrava na errada em
+            silêncio. */}
+        <FazendaDaTarefa acao="Cadastrando em" podeTrocar />
+
         <div className="flex items-end gap-2">
           <div className="flex-1">
             <Campo

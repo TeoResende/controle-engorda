@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { EtiquetaConexao } from "@/components/barra-tecnico";
+import { FazendaDaTarefa } from "@/components/fazenda-da-tarefa";
 import { UltimasPesagens } from "@/components/ultimas-pesagens";
 import { Microfone, Voltar } from "@/components/icones";
 import { GravadorDeVoz, LIMITE_SEGUNDOS, suporteGravacao } from "@/lib/audio";
@@ -144,6 +145,11 @@ function Conteudo() {
       </header>
 
       <form onSubmit={salvar} className="flex flex-1 flex-col gap-5 p-5">
+        {/* Sem troca aqui: mudar de fazenda no meio faria o mesmo brinco
+            resolver para outro animal, e o peso já digitado iria para o bicho
+            errado. A troca é antes de entrar, em *Mais*. */}
+        <FazendaDaTarefa acao="Pesando em" />
+
         <section className="rounded-2xl bg-verde px-5 py-5">
           <p className="font-titulo text-3xl font-extrabold text-fundo">
             {brinco}

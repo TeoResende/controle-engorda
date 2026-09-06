@@ -56,7 +56,7 @@ async def _fazendas_do_master(session: AsyncSession) -> list[Fazenda]:
 
 
 def _par_de_tokens(
-    usuario: Usuario, fazenda_id: uuid.UUID, papel: Papel
+    usuario: Usuario, fazenda_id: uuid.UUID, fazenda_nome: str, papel: Papel
 ) -> TokenResponse:
     dados = {
         "usuario_id": str(usuario.id),
@@ -68,6 +68,7 @@ def _par_de_tokens(
         access_token=criar_token(**dados, tipo="access"),
         refresh_token=criar_token(**dados, tipo="refresh"),
         fazenda_id=fazenda_id,
+        fazenda_nome=fazenda_nome,
         papel=papel,
         admin_master=usuario.admin_master,
     )
@@ -75,8 +76,11 @@ def _par_de_tokens(
 
 async def _escolher_fazenda(
     session: AsyncSession, usuario: Usuario, fazenda_id: uuid.UUID | None
-) -> tuple[uuid.UUID, Papel]:
-    """Resolve em qual fazenda a sessão vai abrir, e com qual papel.
+) -> tuple[uuid.UUID, str, Papel]:
+    """Resolve em qual fazenda a sessão vai abrir, com que nome e com qual papel.
+
+    O nome viaja junto porque a sessão precisa saber **dizer** em que fazenda
+    está: é o que a tela de cadastro mostra antes de criar um animal.
 
     Superusuário entra em qualquer fazenda como admin; os demais só nas que
     têm vínculo ativo. Com mais de uma opção e nenhuma escolhida, 409 com a
@@ -104,10 +108,10 @@ async def _escolher_fazenda(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Usuário não tem acesso a esta fazenda",
             )
-        return escolhida[0], escolhida[2]
+        return escolhida
 
     if len(opcoes) == 1:
-        return opcoes[0][0], opcoes[0][2]
+        return opcoes[0]
 
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -136,8 +140,8 @@ async def login(
     if usuario is None or not verificar_senha(dados.senha, usuario.senha_hash):
         raise CREDENCIAL_INVALIDA
 
-    fazenda_id, papel = await _escolher_fazenda(session, usuario, dados.fazenda_id)
-    return _par_de_tokens(usuario, fazenda_id, papel)
+    fazenda_id, fazenda_nome, papel = await _escolher_fazenda(session, usuario, dados.fazenda_id)
+    return _par_de_tokens(usuario, fazenda_id, fazenda_nome, papel)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -162,13 +166,13 @@ async def refresh(
     # O acesso é relido do banco: vínculo desativado depois que o refresh foi
     # emitido tem que invalidar a renovação.
     try:
-        fazenda_id, papel = await _escolher_fazenda(session, usuario, fazenda_id)
+        fazenda_id, fazenda_nome, papel = await _escolher_fazenda(session, usuario, fazenda_id)
     except HTTPException as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Acesso à fazenda foi revogado"
         ) from exc
 
-    return _par_de_tokens(usuario, fazenda_id, papel)
+    return _par_de_tokens(usuario, fazenda_id, fazenda_nome, papel)
 
 
 @router.get("/sessoes", response_model=list[SessaoDaFazenda])
@@ -194,7 +198,7 @@ async def sessoes(ctx: CtxDep, session: SessaoGlobalDep) -> list[SessaoDaFazenda
     return [
         SessaoDaFazenda(
             fazenda_id=fazenda_id,
-            nome=nome,
+            fazenda_nome=nome,
             papel=papel,
             **{
                 campo: criar_token(
@@ -222,8 +226,8 @@ async def trocar_fazenda(
     Trocar de fazenda é trocar de token — o `fazenda_id` nunca vem do corpo da
     requisição em endpoints de dados.
     """
-    fazenda_id, papel = await _escolher_fazenda(session, ctx.usuario, dados.fazenda_id)
-    return _par_de_tokens(ctx.usuario, fazenda_id, papel)
+    fazenda_id, fazenda_nome, papel = await _escolher_fazenda(session, ctx.usuario, dados.fazenda_id)
+    return _par_de_tokens(ctx.usuario, fazenda_id, fazenda_nome, papel)
 
 
 @router.post("/senha", status_code=status.HTTP_204_NO_CONTENT)

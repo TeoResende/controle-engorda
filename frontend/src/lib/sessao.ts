@@ -20,7 +20,10 @@ export type Sessao = {
   fazenda_id: string;
   papel: Papel;
   admin_master: boolean;
-  nome?: string;
+  /** Nome da fazenda desta sessão — é o que as telas mostram para dizer onde a
+   *  pessoa está trabalhando. Opcional porque sessões guardadas antes desta
+   *  versão não o têm. */
+  fazenda_nome?: string;
 };
 
 type Guardado = { sessoes: Sessao[]; ativa: string | null };

@@ -8,6 +8,8 @@ import uuid
 
 from app.core.security import criar_token
 
+from tests.conftest import SENHA
+
 
 async def test_listagem_so_traz_animais_da_fazenda_do_token(client, dados, logar):
     headers_a = await logar(dados["cliente_a"])
@@ -120,3 +122,58 @@ async def test_usuario_desativado_perde_acesso(client, dados, logar, session):
     await session.commit()
 
     assert (await client.get("/animais", headers=headers)).status_code == 401
+
+
+async def test_animal_nasce_na_fazenda_do_token_e_a_resposta_diz_qual(
+    client, dados, logar
+):
+    """O vínculo animal→fazenda vem do token, e **volta na resposta**.
+
+    Sem devolver, o app precisava deduzir a fazenda do animal que acabou de
+    criar. A cópia local do rebanho é indexada por (fazenda, brinco): deduzir
+    errado esconde o animal no próprio aparelho, sem erro nenhum.
+    """
+    tecnico_a = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    criado = await client.post(
+        "/animais", json={"brinco": "9101"}, headers=tecnico_a
+    )
+
+    assert criado.status_code == 201
+    assert criado.json()["fazenda_id"] == str(dados["fazenda_a"].id)
+
+
+async def test_o_mesmo_brinco_em_duas_fazendas_sao_dois_animais(client, dados, logar):
+    """O brinco é único por fazenda, não no sistema. Cada um tem que sair da
+    API dizendo de quem é — é o que impede a pesagem de ir para o bicho errado
+    no aparelho de quem atende as duas."""
+    tecnico_a = await logar(dados["tecnico"], dados["fazenda_a"].id)
+    tecnico_b = await logar(dados["tecnico"], dados["fazenda_b"].id)
+
+    na_a = (await client.post("/animais", json={"brinco": "9102"}, headers=tecnico_a)).json()
+    na_b = (await client.post("/animais", json={"brinco": "9102"}, headers=tecnico_b)).json()
+
+    assert na_a["id"] != na_b["id"]
+    assert na_a["fazenda_id"] == str(dados["fazenda_a"].id)
+    assert na_b["fazenda_id"] == str(dados["fazenda_b"].id)
+
+    # E nenhum enxerga o outro.
+    de_a = (await client.get("/animais?limite=200", headers=tecnico_a)).json()["itens"]
+    assert na_b["id"] not in [a["id"] for a in de_a]
+
+
+async def test_a_sessao_sabe_dizer_em_que_fazenda_esta(client, dados, logar):
+    """O nome da fazenda vem junto do token.
+
+    As telas de coleta e cadastro rodam sem barra superior; sem o nome na
+    sessão, elas não teriam como dizer para onde o registro vai — e quem atende
+    duas fazendas cadastrava na errada em silêncio.
+    """
+    entrada = await client.post(
+        "/auth/login",
+        json={
+            "email": dados["tecnico"].email,
+            "senha": SENHA,
+            "fazenda_id": str(dados["fazenda_a"].id),
+        },
+    )
+    assert entrada.json()["fazenda_nome"] == dados["fazenda_a"].nome
