@@ -406,6 +406,18 @@ Tudo calculado no aparelho, então funciona sem sinal — e a tela inicial usa a
 mesma função, porque dois números diferentes para a mesma pergunta fariam o
 técnico duvidar dos dois.
 
+**Salvar um peso reflete na cópia do rebanho na hora** (`refletirNoRebanho`, em
+`lib/sync.ts`). Sem isso havia uma janela de dado velho: com sinal, a fila é
+esvaziada segundos depois de salvar, e o item some **antes** de o
+`baixarRebanho` seguinte atualizar a cópia — então o animal recém-pesado
+reaparecia como pendente na conferência, convidando a uma segunda pesagem. A
+gravação agora avança o `ultima_pesagem`/`ultimo_peso` da cópia local (só para
+frente: pesagem retroativa não apaga leitura mais nova), de forma otimista e
+local. O `baixarRebanho` seguinte reconcilia com o servidor, que a essa altura
+já recebeu o dado. Piorou quando a sincronização deixou de rodar a cada
+navegação (8.11) e a cópia parou de ser atualizada de graça; o reflexo local é
+o conserto certo, porque não depende de rede. Coberto em `testes/sync.test.ts`.
+
 **Cliente** (barra lateral: Visão geral · Animais · Lotes · Configurações)
 
 `/dashboard` · `/dashboard/animais` (busca e paginação) · `/dashboard/lotes` ·

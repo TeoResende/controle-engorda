@@ -61,6 +61,7 @@ function pesagem(id: string, brinco = "1001"): PesagemPendente {
 
 beforeEach(async () => {
   await db.fila.clear();
+  await db.animais.clear();
   respostas.length = 0;
   ultimoCorpo = null;
 });
@@ -177,6 +178,75 @@ describe("fila de pesagens", () => {
     const resumo = await sincronizar();
 
     expect(resumo.comErro).toBe(1);
+    expect(await db.fila.count()).toBe(1);
+  });
+});
+
+/**
+ * A tela de conferência não pode voltar a mostrar como pendente um animal que
+ * o técnico acabou de pesar — nem depois que a fila sincroniza e o item some.
+ * O "pesado hoje" vem da fila E da cópia do rebanho; salvar tem que atualizar a
+ * cópia na hora, senão há uma janela de dado velho.
+ */
+describe("reflexo da pesagem na cópia do rebanho", () => {
+  const HOJE = "2026-09-04";
+
+  async function animalNoAparelho(brinco: string, ultima: string | null) {
+    await db.animais.put({
+      id: `id-${brinco}`,
+      fazenda_id: "f",
+      brinco,
+      nome: null,
+      raca: null,
+      porte: null,
+      lote_id: null,
+      status: "ativo",
+      ultimo_peso: ultima ? "250.00" : null,
+      ultima_pesagem: ultima,
+    });
+  }
+
+  it("marca o animal como pesado hoje assim que a pesagem é salva", async () => {
+    await animalNoAparelho("1001", null);
+
+    await enfileirar({ ...pesagem("x1", "1001"), data: HOJE, peso_kg: "312.00" });
+
+    const a = await db.animais.get("id-1001");
+    expect(a?.ultima_pesagem?.slice(0, 10)).toBe(HOJE);
+    expect(a?.ultimo_peso).toBe("312.00");
+  });
+
+  it("sobrevive à sincronização: o item some da fila, a cópia continua marcada", async () => {
+    await animalNoAparelho("1001", null);
+    respostas.push({
+      criadas: 1,
+      duplicadas: 0,
+      erros: 0,
+      resultados: [{ id: "x2", situacao: "criada", detalhe: null }],
+    });
+
+    await enfileirar({ ...pesagem("x2", "1001"), data: HOJE });
+    await sincronizar(); // sobe e apaga o item da fila
+
+    expect(await db.fila.count()).toBe(0);
+    const a = await db.animais.get("id-1001");
+    expect(a?.ultima_pesagem?.slice(0, 10)).toBe(HOJE); // ainda pesado hoje
+  });
+
+  it("pesagem retroativa não apaga uma leitura mais recente já na cópia", async () => {
+    await animalNoAparelho("1001", "2026-09-04");
+
+    await enfileirar({ ...pesagem("x3", "1001"), data: "2026-08-01", peso_kg: "200.00" });
+
+    const a = await db.animais.get("id-1001");
+    expect(a?.ultima_pesagem).toBe("2026-09-04"); // preservada
+    expect(a?.ultimo_peso).toBe("250.00");
+  });
+
+  it("animal que não está na cópia não quebra o salvamento", async () => {
+    await expect(
+      enfileirar({ ...pesagem("x4", "9999"), data: HOJE }),
+    ).resolves.toBeUndefined();
     expect(await db.fila.count()).toBe(1);
   });
 });

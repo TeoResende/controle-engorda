@@ -83,6 +83,35 @@ export async function enfileirar(pesagem: PesagemPendente): Promise<void> {
       throw e2;
     }
   }
+  await refletirNoRebanho(pesagem);
+}
+
+/**
+ * Reflete a pesagem recém-registrada na cópia local do animal.
+ *
+ * Sem isto, a tela de conferência mostrava dado velho: a "pesado hoje" vem de
+ * duas fontes — a fila e o `ultima_pesagem` da cópia do rebanho — e com sinal a
+ * fila é esvaziada segundos depois de salvar. O item some antes de o
+ * `baixarRebanho` seguinte atualizar a cópia, e o animal reaparece como
+ * pendente: leitura errada ou retrabalho.
+ *
+ * É otimista e local (funciona sem sinal): grava na cópia o que o técnico
+ * acabou de medir. O `baixarRebanho` seguinte reconcilia com o servidor, que a
+ * essa altura já recebeu a pesagem.
+ */
+async function refletirNoRebanho(p: PesagemPendente): Promise<void> {
+  try {
+    const animal = p.animal_id
+      ? await db.animais.get(p.animal_id)
+      : await db.animais.where("[fazenda_id+brinco]").equals([p.fazenda_id, p.brinco]).first();
+    if (!animal) return;
+    // Só avança no tempo: uma pesagem retroativa não pode apagar da tela uma
+    // leitura mais recente que já está na cópia.
+    if (animal.ultima_pesagem && animal.ultima_pesagem.slice(0, 10) > p.data) return;
+    await db.animais.update(animal.id, { ultima_pesagem: p.data, ultimo_peso: p.peso_kg });
+  } catch {
+    // Reflexo é conveniência: se falhar (cota, corrida), o baixarRebanho corrige.
+  }
 }
 
 /**
