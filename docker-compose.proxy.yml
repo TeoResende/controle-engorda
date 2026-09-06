@@ -23,6 +23,18 @@ services:
       - --log.level=INFO
 
   backend:
+    environment:
+      # Este overlay é a cara pública do sistema — o que o proxy da frente expõe
+      # à internet. Então é ele, não só o prod.yml (que disputa a 443 com o
+      # proxy), quem liga as verificações de subida: a aplicação recusa começar
+      # com segredo de exemplo, e /docs e /pronto deixam de vazar.
+      AMBIENTE: producao
+    # Imagem enxuta, sem as ferramentas de teste nem as bibliotecas de
+    # transcrição (só o worker as executa).
+    build:
+      context: ./backend
+      args:
+        PERFIL: api
     command: >
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       --proxy-headers --forwarded-allow-ips ${PROXIES_CONFIAVEIS:-*}

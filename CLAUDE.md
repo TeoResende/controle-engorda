@@ -1513,6 +1513,14 @@ Em produção, `docker compose -f docker-compose.yml -f docker-compose.prod.yml 
 ### Decisões de infra tomadas no M0 (afetam o M9)
 
 1. **Traefik usa o file provider, não o provider Docker.** O cliente Docker embutido no Traefik negocia a API 1.24, que o daemon 29.x recusa (mínimo 1.40) — o provider Docker fica em erro permanente e nenhuma rota é criada. As rotas ficam declaradas em `traefik/dinamico/rotas.yml` (dev) e `traefik/dinamico-prod/rotas.yml` (produção, com `certResolver: le`). Serviço novo = nova entrada nesses arquivos, não label no compose.
+> **Produção atrás de proxy externo liga o modo produção pelo `proxy.yml`.**
+> `docker-compose.prod.yml` liga `AMBIENTE=producao` mas assume a 443 com
+> Let's Encrypt — o que briga com quem já tem um proxy gerando o SSL na frente.
+> Por isso `docker-compose.proxy.yml` também liga `AMBIENTE=producao` e constrói
+> a imagem enxuta (`PERFIL: api`): é o overlay que fica exposto à internet, então
+> é ele quem tem de recusar subir com segredo de exemplo. Passo a passo em
+> [`docs/producao.md`](docs/producao.md).
+
 2. **Portas 80/443 já estão ocupadas nesta máquina** pelo stack `servicedesk-npm-1` (Nginx Proxy Manager). Em dev o Traefik escuta em `TRAEFIK_HTTP_PORT` (8081) / `TRAEFIK_HTTPS_PORT` (8443), configuráveis no `.env`. **No M9 isso precisa ser resolvido**: ou o Traefik assume 80/443 na VPS de produção, ou o app entra atrás do Nginx Proxy Manager existente (e aí o Let's Encrypt fica com o NPM, não com o Traefik).
 3. **Backend e worker rodam com o UID/GID do host** (`UID_HOST`/`GID_HOST` no `.env`). Sem isso, todo arquivo gerado dentro do container no bind mount — migration do Alembic, por exemplo — nasce como root e não é editável no host.
 4. **`bcrypt` direto, sem `passlib`.** A passlib 1.7.4 está sem manutenção e quebra com bcrypt >= 4.1 (`password cannot be longer than 72 bytes`). Senhas passam por SHA-256 + base64 antes do bcrypt, o que remove o limite de 72 bytes — a mesma transformação é aplicada no hash e na verificação (`app/core/security.py`).
