@@ -9,7 +9,7 @@ import { UltimasPesagens } from "@/components/ultimas-pesagens";
 import { Microfone, Voltar } from "@/components/icones";
 import { GravadorDeVoz, LIMITE_SEGUNDOS, suporteGravacao } from "@/lib/audio";
 import { AreaDeTexto, Aviso, Botao, Campo, Chip } from "@/components/ui";
-import { animalPorBrinco, type AnimalLocal } from "@/lib/db";
+import { animalPorBrinco, ArmazenamentoCheio, type AnimalLocal } from "@/lib/db";
 import { fazendaAtiva } from "@/lib/sessao";
 import { data as formatarData, hojeLocal, peso as formatarPeso } from "@/lib/formato";
 import { enfileirar, sincronizar } from "@/lib/sync";
@@ -96,27 +96,37 @@ function Conteudo() {
     setSalvando(true);
     setErro(null);
 
-    await enfileirar({
-      // UUID criado aqui, offline: é ele que impede o reenvio de duplicar.
-      // Não usa crypto.randomUUID direto — ele não existe fora de contexto
-      // seguro, e o app roda em http na rede local.
-      id: novoUuid(),
-      // Carimba a fazenda: a fila pode ter pesagens de duas, e cada uma é
-      // enviada com o token da sua.
-      fazenda_id: fazenda,
-      animal_id: animal?.id ?? null,
-      brinco,
-      data: dataPesagem,
-      peso_kg: valor.toFixed(2),
-      observacao_texto: observacao.trim() || null,
-      latitude: null,
-      longitude: null,
-      coletado_em: new Date().toISOString(),
-      tentativas: 0,
-      ultimo_erro: null,
-      audio: audio ?? undefined,
-      audio_enviado: false,
-    });
+    try {
+      await enfileirar({
+        // UUID criado aqui, offline: é ele que impede o reenvio de duplicar.
+        // Não usa crypto.randomUUID direto — ele não existe fora de contexto
+        // seguro, e o app roda em http na rede local.
+        id: novoUuid(),
+        // Carimba a fazenda: a fila pode ter pesagens de duas, e cada uma é
+        // enviada com o token da sua.
+        fazenda_id: fazenda,
+        animal_id: animal?.id ?? null,
+        brinco,
+        data: dataPesagem,
+        peso_kg: valor.toFixed(2),
+        observacao_texto: observacao.trim() || null,
+        latitude: null,
+        longitude: null,
+        coletado_em: new Date().toISOString(),
+        tentativas: 0,
+        ultimo_erro: null,
+        audio: audio ?? undefined,
+        audio_enviado: false,
+      });
+    } catch (e) {
+      setSalvando(false);
+      setErro(
+        e instanceof ArmazenamentoCheio
+          ? "O armazenamento do aparelho está cheio. Assim que houver sinal, sincronize as pesagens pendentes para liberar espaço — ou libere espaço no celular e tente de novo."
+          : "Não consegui salvar a pesagem. Tente de novo.",
+      );
+      return;
+    }
 
     // Tenta subir na hora, mas não espera dar certo: o registro já está salvo.
     const resumo = await sincronizar();

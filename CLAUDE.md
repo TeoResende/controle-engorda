@@ -605,6 +605,40 @@ invertida de propósito: o Next embute esses caminhos em JSON escapado dentro do
 próprio HTML, e sem isso a URL saía com uma barra a mais, virava 404 e o arquivo
 ficava fora do cache enquanto tudo parecia ter dado certo.
 
+### Cota de armazenamento cheia (o "erro no modo técnico")
+
+Sintoma: `AbortError: QuotaExceededError` só no app do técnico. Causa: a cota é
+da **origem** e é compartilhada entre o cache do Service Worker e o IndexedDB —
+e o cache do SW crescia sem limite. Cada build do frontend gera chunks com hash
+novo; o handler de `/_next/static` guardava os novos sem apagar os velhos, e o
+nome do cache (`engorda-shell-vN`) só muda quando a `VERSAO` sobe na mão. A cada
+`git pull` + build, mais uma geração se somava. Quando a origem enchia, era a
+gravação da pesagem no IndexedDB que abortava — no técnico, porque o dashboard
+não tem SW.
+
+Três defesas, das quais a primeira é a raiz:
+
+1. **Teto no cache de estáticos** (`guardarComTeto`, `TETO_ESTATICOS`). O Cache
+   devolve as chaves em ordem de inserção, então apagar as primeiras remove as
+   gerações mais antigas. O offline continua inteiro (o teto guarda folga) e o
+   crescimento para de ser ilimitado. Bumpar a `VERSAO` (feito: v6) faz o
+   `activate` apagar o cache inchado de todo aparelho na atualização.
+2. **A fila é sagrada.** `enfileirar()` que estoura por cota **libera o cache do
+   app** (reconstruível) e tenta de novo; se ainda não couber, lança
+   `ArmazenamentoCheio`, e a tela de coleta diz isso com clareza — a pesagem
+   nunca some em silêncio nem vira crash. `liberarEspaco()` apaga só os caches
+   do SW, nunca a fila.
+3. **Marca e logo são conveniência.** `gravarMeta()` engole o estouro de cota:
+   ficar sem logo é melhor que derrubar a tela.
+
+`ehCotaCheia()` reconhece as duas formas do erro — `QuotaExceededError` direto e
+`AbortError` com "quota" na mensagem (foi a segunda que apareceu). Coberto por
+`frontend/testes/cota.test.ts` e `sw.test.ts`.
+
+**Guardar em cache é sempre conveniência; a fila local nunca é.** Toda escrita
+nova de storage no caminho do técnico tem que escolher um dos dois lados —
+degrada em silêncio, ou avisa e preserva o dado. Nunca deixa o erro cru subir.
+
 **`/tecnico/mais` tem um diagnóstico de uso offline** que diz qual das quatro
 condições falhou — contexto seguro, worker ativo, telas guardadas, rebanho
 baixado — e um botão *Preparar para o campo*. "Não funcionou" não é acionável.

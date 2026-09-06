@@ -19,8 +19,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type Manipulador = (evento: unknown) => void;
 
-function carregarWorker(guardado: Record<string, string>, rede: (url: string) => Promise<Response>) {
+function carregarWorker(
+  guardado: Record<string, string>,
+  rede: (url: string) => Promise<Response>,
+  chaveiaCota = false,
+) {
   const ouvintes = new Map<string, Manipulador>();
+  const ordem: string[] = [];
   const cache = {
     async match(chave: unknown) {
       const url = typeof chave === "string" ? chave : (chave as Request).url;
@@ -29,7 +34,29 @@ function carregarWorker(guardado: Record<string, string>, rede: (url: string) =>
     },
     async put(chave: unknown, resposta: Response) {
       const url = typeof chave === "string" ? chave : (chave as Request).url;
+      if (chaveiaCota && !(url in guardado)) {
+        const e = new Error("Quota exceeded");
+        e.name = "QuotaExceededError";
+        throw e;
+      }
+      if (!(url in guardado)) ordem.push(url);
       guardado[url] = await resposta.text();
+    },
+    async keys() {
+      // O Cache real devolve Request na ordem de inserção.
+      return ordem.map((u) => ({ url: u.startsWith("http") ? u : "https://app.teste" + u }));
+    },
+    async delete(chave: unknown) {
+      const url = typeof chave === "string" ? chave : (chave as { url: string }).url;
+      const path = url.replace("https://app.teste", "");
+      for (const k of [url, path]) {
+        if (k in guardado) {
+          delete guardado[k];
+          const i = ordem.indexOf(k);
+          if (i >= 0) ordem.splice(i, 1);
+        }
+      }
+      return true;
     },
     async addAll() {},
   };
@@ -139,5 +166,31 @@ describe("service worker do técnico", () => {
     const resposta = await pedir(ouvintes, "https://app.teste/api/animais", "no-cors");
 
     expect(resposta).toBeNull();
+  });
+
+  it("cota cheia ao guardar não derruba a navegação: entrega a página mesmo assim", async () => {
+    // Era a causa do "erro no modo técnico": o cache lotava a cota da origem e
+    // a escrita estourava. Guardar é conveniência — a resposta tem que sair.
+    const rede2 = vi.fn(async () => new Response("da rede"));
+    const { ouvintes } = carregarWorker({}, rede2, /* chaveiaCota */ true);
+
+    const resposta = await pedir(ouvintes, TELA);
+
+    expect(await resposta!.text()).toBe("da rede");
+  });
+
+  it("o cache de estáticos não cresce sem limite entre builds", async () => {
+    const guardado: Record<string, string> = {};
+    let n = 0;
+    const rede2 = vi.fn(async () => new Response("chunk-" + n++));
+    const { ouvintes } = carregarWorker(guardado, rede2);
+
+    // Simula muitas gerações de chunks com hash novo (o que cada build produz).
+    for (let i = 0; i < 500; i++) {
+      await pedir(ouvintes, `https://app.teste/_next/static/chunks/${i}.js`, "no-cors");
+    }
+
+    const estaticos = Object.keys(guardado).filter((u) => u.includes("/_next/static/"));
+    expect(estaticos.length).toBeLessThanOrEqual(400);
   });
 });

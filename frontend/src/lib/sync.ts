@@ -1,5 +1,13 @@
 import { apiAuth, ErroApi, SemConexao } from "./api";
-import { db, gravarMeta, type AnimalLocal, type PesagemPendente } from "./db";
+import {
+  ArmazenamentoCheio,
+  db,
+  ehCotaCheia,
+  gravarMeta,
+  liberarEspaco,
+  type AnimalLocal,
+  type PesagemPendente,
+} from "./db";
 import { lerSessao, lerSessoes, salvarSessoes } from "./sessao";
 
 /**
@@ -60,7 +68,21 @@ export async function pendentes(): Promise<number> {
 }
 
 export async function enfileirar(pesagem: PesagemPendente): Promise<void> {
-  await db.fila.put(pesagem);
+  try {
+    await db.fila.put(pesagem);
+  } catch (e) {
+    if (!ehCotaCheia(e)) throw e;
+    // A fila é sagrada: sacrifica o cache do app (que se reconstrói sozinho) e
+    // tenta de novo. Se mesmo assim não couber, avisa com clareza — a pesagem
+    // não some em silêncio nem vira um erro críptico na tela.
+    await liberarEspaco();
+    try {
+      await db.fila.put(pesagem);
+    } catch (e2) {
+      if (ehCotaCheia(e2)) throw new ArmazenamentoCheio();
+      throw e2;
+    }
+  }
 }
 
 /**

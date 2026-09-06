@@ -13,7 +13,7 @@
  * é pior que erro de rede.
  */
 
-const VERSAO = "v5";
+const VERSAO = "v6";
 const CACHE_SHELL = `engorda-shell-${VERSAO}`;
 
 // Rotas do app que precisam abrir sem rede.
@@ -53,8 +53,42 @@ async function guardar(cache, url) {
   if (await cache.match(url)) return null;
   const resposta = await fetch(url);
   if (!resposta.ok) return null;
-  await cache.put(url, resposta.clone());
+  await guardarComTeto(cache, url, resposta.clone());
   return resposta;
+}
+
+/*
+ * Teto para o cache de estáticos.
+ *
+ * Cada build do frontend gera chunks com hash novo no nome. O handler guardava
+ * os novos sem nunca remover os velhos, e o nome do cache só muda quando a
+ * VERSAO sobe na mão — então, a cada `git pull` + build, uma geração de chunks
+ * se somava à anterior. A cota da origem é COMPARTILHADA com o IndexedDB, então
+ * o cache inchado acabava fazendo a gravação da pesagem abortar
+ * (`AbortError: QuotaExceededError`). Era o bug do "erro no modo técnico".
+ *
+ * `caches` entrega as chaves em ordem de inserção, então apagar as primeiras
+ * remove as mais antigas. O teto guarda algumas gerações de folga — o offline
+ * continua inteiro — e impede o crescimento sem limite. Estouro de cota nunca
+ * derruba nada: no pior caso o recurso só não fica guardado.
+ */
+const TETO_ESTATICOS = 400;
+
+async function guardarComTeto(cache, chave, resposta) {
+  try {
+    await cache.put(chave, resposta);
+  } catch (e) {
+    // Cota cheia ao guardar não pode virar exceção não tratada: o recurso já
+    // foi entregue à página; guardá-lo é só conveniência.
+    return;
+  }
+
+  const chaves = await cache.keys();
+  const estaticas = chaves.filter((r) => new URL(r.url).pathname.startsWith("/_next/static/"));
+  const excedente = estaticas.length - TETO_ESTATICOS;
+  for (let i = 0; i < excedente; i++) {
+    await cache.delete(estaticas[i]);
+  }
 }
 
 /**
@@ -69,7 +103,7 @@ async function guardar(cache, url) {
 async function guardarTelaComRecursos(cache, tela) {
   const resposta = await fetch(tela, { credentials: "same-origin" });
   if (!resposta.ok) return;
-  await cache.put(tela, resposta.clone());
+  await guardarComTeto(cache, tela, resposta.clone());
 
   const recursos = extrairRecursos(await resposta.text());
 
@@ -148,8 +182,8 @@ self.addEventListener("fetch", (evento) => {
         const guardada = await cache.match(url.pathname);
 
         const daRede = fetch(requisicao)
-          .then((resposta) => {
-            if (resposta.ok) cache.put(url.pathname, resposta.clone());
+          .then(async (resposta) => {
+            if (resposta.ok) await guardarComTeto(cache, url.pathname, resposta.clone());
             return resposta;
           })
           .catch(() => null);
@@ -190,7 +224,7 @@ self.addEventListener("fetch", (evento) => {
         if (guardado) return guardado;
         try {
           const resposta = await fetch(requisicao);
-          if (resposta.ok) cache.put(requisicao, resposta.clone());
+          if (resposta.ok) await guardarComTeto(cache, requisicao, resposta.clone());
           return resposta;
         } catch {
           // Recurso não guardado e sem rede: melhor 504 explícito que erro

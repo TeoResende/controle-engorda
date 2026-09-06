@@ -98,12 +98,59 @@ db.version(2)
 
 export { db };
 
+/**
+ * Erro claro para "o armazenamento do aparelho encheu".
+ *
+ * Existe para a tela poder dizer isso com todas as letras em vez de estourar um
+ * `AbortError: QuotaExceededError` cru na cara do técnico. A cota é da origem e
+ * é **compartilhada** entre o cache do app (Service Worker) e o IndexedDB —
+ * quando o cache do app cresce demais, é a escrita da pesagem que aborta.
+ */
+export class ArmazenamentoCheio extends Error {
+  constructor() {
+    super("Armazenamento do aparelho cheio");
+    this.name = "ArmazenamentoCheio";
+  }
+}
+
+/**
+ * Reconhece o estouro de cota em qualquer das formas com que ele chega.
+ *
+ * O IndexedDB aborta a transação e o erro pode vir como `QuotaExceededError`
+ * direto, ou como `AbortError` com "quota" na mensagem — foi esta segunda forma
+ * que apareceu no aparelho ("AbortError: QuotaExceededError"). Aceita as duas.
+ */
+export function ehCotaCheia(e: unknown): boolean {
+  const nome = (e as { name?: string })?.name ?? "";
+  const msg = String((e as { message?: string })?.message ?? "");
+  return nome === "QuotaExceededError" || (nome === "AbortError" && /quota/i.test(msg));
+}
+
+/**
+ * Libera espaço sacrificando o que é **reconstruível**: o cache de telas do
+ * Service Worker. A fila de pesagens nunca é tocada aqui — ela é o dado que não
+ * pode se perder, e é justamente por ela que estamos abrindo espaço.
+ */
+export async function liberarEspaco(): Promise<void> {
+  if (typeof caches === "undefined") return;
+  for (const nome of await caches.keys()) {
+    await caches.delete(nome);
+  }
+}
+
 export async function lerMeta<T>(chave: string): Promise<T | undefined> {
   return (await db.meta.get(chave))?.valor as T | undefined;
 }
 
 export async function gravarMeta(chave: string, valor: unknown): Promise<void> {
-  await db.meta.put({ chave, valor });
+  try {
+    await db.meta.put({ chave, valor });
+  } catch (e) {
+    // Marca, logo e identidade são conveniência: melhor ficar sem do que
+    // derrubar a tela. A pesagem, que não é conveniência, tem tratamento
+    // próprio em `enfileirar`.
+    if (!ehCotaCheia(e)) throw e;
+  }
 }
 
 /** Procura o animal na cópia local — é o que faz a tela de coleta abrir offline. */
