@@ -1,4 +1,10 @@
-import { lerSessao, lerSessoes, limparSessao, salvarSessao, type Sessao } from "./sessao";
+import {
+  atualizarSessao,
+  esquecerSessao,
+  lerSessao,
+  lerSessoes,
+  type Sessao,
+} from "./sessao";
 
 // Precisa ser um endereço que o NAVEGADOR alcance — nunca "backend:8000", que
 // só existe dentro da rede do Docker.
@@ -99,7 +105,18 @@ export async function api<T>(caminho: string, opcoes: RequestInit = {}): Promise
   return interpretar<T>(resposta);
 }
 
-async function renovar(sessao: Sessao): Promise<Sessao | null> {
+/**
+ * Renova o par de tokens.
+ *
+ * Devolve a sessão nova, ou o **motivo** da falha — e a diferença entre os dois
+ * motivos é tudo:
+ *
+ * - `"sem-rede"`: o pedido não chegou ao servidor. Não prova nada sobre a
+ *   credencial, e por isso **não** pode custar a sessão.
+ * - `"recusada"`: o servidor respondeu que aquele refresh não vale mais
+ *   (expirou, vínculo revogado). Aí sim a sessão daquela fazenda morreu.
+ */
+async function renovar(sessao: Sessao): Promise<Sessao | "sem-rede" | "recusada"> {
   try {
     const nova = await api<Sessao>("/auth/refresh", {
       method: "POST",
@@ -108,10 +125,12 @@ async function renovar(sessao: Sessao): Promise<Sessao | null> {
     // O nome da fazenda vem na renovação, mas o que já estava guardado serve de
     // rede: sem ele, o seletor e as telas de tarefa ficariam sem rótulo — e é
     // justamente o rótulo que diz para onde vai o que a pessoa registrar.
-    salvarSessao({ ...nova, fazenda_nome: nova.fazenda_nome ?? sessao.fazenda_nome });
+    // `atualizarSessao` e não `salvarSessao`: renovar token não é trocar de
+    // fazenda, e a fila renova o token de qualquer fazenda que tenha pendência.
+    atualizarSessao({ ...nova, fazenda_nome: nova.fazenda_nome ?? sessao.fazenda_nome });
     return nova;
-  } catch {
-    return null;
+  } catch (e) {
+    return e instanceof SemConexao ? "sem-rede" : "recusada";
   }
 }
 
@@ -151,10 +170,22 @@ export async function apiAuth<T>(
 
   if (resposta.status === 401) {
     const renovada = await renovar(sessao);
-    if (!renovada) {
-      limparSessao();
-      throw new ErroApi(401, "Sessão expirada");
+
+    // **Sem sinal não desloga.** Este ramo já apagou *todas* as sessões do
+    // aparelho quando a renovação falhava por qualquer motivo — inclusive falta
+    // de rede. No curral isso é o pior desfecho possível: o técnico é jogado
+    // para uma tela de login que ele não tem como completar, e os tokens com
+    // que a fila ia subir somem junto. A falha de rede vira "sem conexão", que
+    // é o que ela é, e a sessão fica intacta para quando o sinal voltar.
+    if (renovada === "sem-rede") throw new SemConexao();
+
+    if (renovada === "recusada") {
+      // O servidor recusou esta credencial. Só esta fazenda sai — quem atende
+      // outra continua trabalhando nela.
+      esquecerSessao(sessao.fazenda_id);
+      throw new ErroApi(401, "Sessão expirada. Entre de novo nesta fazenda.");
     }
+
     sessao = renovada;
     resposta = await chamar(sessao.access_token);
   }

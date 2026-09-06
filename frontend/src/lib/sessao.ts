@@ -73,6 +73,21 @@ export function salvarSessao(sessao: Sessao): void {
   gravar({ sessoes: [...outras, sessao], ativa: sessao.fazenda_id });
 }
 
+/**
+ * Atualiza os tokens de uma fazenda **sem mexer na que está aberta**.
+ *
+ * `salvarSessao()` marca a fazenda como ativa, o que é certo no login e na
+ * troca — e errado na renovação: a fila sobe cada pesagem com o token da
+ * fazenda dela, então renovar o token da fazenda B, enquanto o técnico
+ * trabalha na A, mudava a fazenda aberta sozinho. O sintoma aparece só na
+ * próxima tela, como se a troca de fazenda tivesse enlouquecido.
+ */
+export function atualizarSessao(sessao: Sessao): void {
+  const { sessoes, ativa } = ler();
+  const outras = sessoes.filter((s) => s.fazenda_id !== sessao.fazenda_id);
+  gravar({ sessoes: [...outras, sessao], ativa });
+}
+
 /** Substitui todas as sessões — usado depois de baixá-las do servidor. */
 export function salvarSessoes(sessoes: Sessao[], ativa?: string): void {
   const anterior = ler().ativa;
@@ -93,6 +108,24 @@ export function trocarFazendaAtiva(fazenda_id: string): boolean {
 
 export function fazendaAtiva(): string | null {
   return lerSessao()?.fazenda_id ?? null;
+}
+
+/**
+ * Descarta a sessão de **uma** fazenda, mantendo as outras.
+ *
+ * `limparSessao()` apaga tudo e é para sair do app de propósito. Quando o
+ * servidor recusa a credencial de uma fazenda, só ela morre: quem atende duas
+ * não pode perder o acesso à segunda — nem os tokens com que a fila pendente
+ * ainda vai subir — por causa de um vínculo revogado na primeira.
+ */
+export function esquecerSessao(fazenda_id: string): void {
+  const { sessoes, ativa } = ler();
+  const restantes = sessoes.filter((s) => s.fazenda_id !== fazenda_id);
+  if (restantes.length === 0) return limparSessao();
+  gravar({
+    sessoes: restantes,
+    ativa: ativa === fazenda_id ? restantes[0].fazenda_id : ativa,
+  });
 }
 
 export function limparSessao(): void {

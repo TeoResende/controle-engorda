@@ -1328,6 +1328,32 @@ do que já estava no aparelho):
 O seletor fica em *Mais*, e a barra superior leva até ele. Com uma fazenda só,
 não aparece.
 
+### Três regras da sessão que sustentam o modo offline
+
+A sessão é o que permite a fila subir quando o sinal voltar. Perder a sessão no
+curral é pior que perder a rede: o técnico é jogado para uma tela de login que
+ele **não tem como completar**, e os tokens da fila vão junto. As três regras
+existem porque as três já foram violadas:
+
+1. **Falha de rede nunca desloga.** `renovar()` distinguia nada: qualquer falha
+   virava "sessão expirada" e chamava `limparSessao()`, que zera o aparelho.
+   Agora ela devolve o motivo — `"sem-rede"` (o pedido não chegou; não prova
+   nada sobre a credencial) ou `"recusada"` (o servidor disse que não vale
+   mais) — e só a segunda custa a sessão.
+2. **Credencial recusada tira uma fazenda, não o aparelho.**
+   `esquecerSessao(fazenda_id)` no lugar de `limparSessao()`: quem atende duas
+   fazendas não pode perder a segunda por causa de um vínculo revogado na
+   primeira. A tela do dashboard fazia o mesmo estrago no `catch` do 401 —
+   também corrigido.
+3. **Renovar token não é trocar de fazenda.** `salvarSessao()` marca a fazenda
+   como ativa, o que é certo no login e na troca. Mas a fila sobe cada pesagem
+   com o token da fazenda dela: renovar o token da fazenda B enquanto se
+   trabalha na A **mudava a fazenda aberta sozinho**, e o sintoma só aparecia na
+   tela seguinte, como se a troca de fazenda tivesse enlouquecido. Renovação
+   usa `atualizarSessao()`, que troca os tokens e não mexe na ativa.
+
+Cobertas por teste em `frontend/testes/api.test.ts`.
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.

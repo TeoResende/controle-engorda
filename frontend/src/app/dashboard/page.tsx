@@ -12,7 +12,6 @@ import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
 import { gmd as formatarGmd, mesCurto, peso as formatarPeso } from "@/lib/formato";
-import { limparSessao } from "@/lib/sessao";
 
 type Alerta = {
   tipo: "gmd_baixo" | "sem_pesagem" | "perda_de_peso";
@@ -58,7 +57,11 @@ export default function Dashboard() {
       .then(setDados)
       .catch((e) => {
         if (e instanceof ErroApi && e.status === 401) {
-          limparSessao();
+          // **Não apaga as outras fazendas.** Isto chamava `limparSessao()`,
+          // que zera o aparelho inteiro: quem atende duas fazendas perdia as
+          // duas — e, no aparelho do técnico, junto com elas os tokens com que
+          // a fila pendente ainda ia subir. O descarte da credencial recusada
+          // já aconteceu dentro de `apiAuth`, e só para a fazenda dela.
           router.replace("/dashboard/login");
           return;
         }

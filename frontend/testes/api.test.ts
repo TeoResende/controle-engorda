@@ -105,3 +105,107 @@ describe("checagem de instalação", () => {
     await expect(precisaConfiguracao()).resolves.toBe(false);
   });
 });
+
+/**
+ * A sessão do técnico é o que sustenta o modo offline: sem ela, a fila de
+ * pesagens não tem com que autenticar quando o sinal voltar.
+ *
+ * Estes testes existem porque o app já apagou **todas** as sessões do aparelho
+ * quando uma renovação falhava — inclusive por falta de rede. O técnico era
+ * jogado para uma tela de login que ele não tinha como completar, no meio do
+ * curral, e os tokens da fila sumiam junto.
+ */
+describe("sessão e renovação", () => {
+  const SESSOES = {
+    ativa: "f1",
+    sessoes: [
+      { fazenda_id: "f1", access_token: "a1", refresh_token: "r1", papel: "tecnico", admin_master: false, fazenda_nome: "Boa Vista" },
+      { fazenda_id: "f2", access_token: "a2", refresh_token: "r2", papel: "tecnico", admin_master: false, fazenda_nome: "Santa Clara" },
+    ],
+  };
+
+  beforeEach(() => {
+    localStorage.setItem("engorda.sessoes", JSON.stringify(SESSOES));
+  });
+
+  function guardadas() {
+    const bruto = localStorage.getItem("engorda.sessoes");
+    return bruto ? (JSON.parse(bruto).sessoes as { fazenda_id: string }[]) : [];
+  }
+
+  it("sem sinal, o 401 vira 'sem conexão' e nenhuma sessão é perdida", async () => {
+    const { apiAuth } = await import("@/lib/api");
+    // Token vencido, e a renovação não chega ao servidor.
+    fetchFalso
+      .mockResolvedValueOnce(resposta("", 401))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    const erro = await apiAuth("/animais").catch((e) => e);
+
+    expect(erro).toBeInstanceOf(SemConexao);
+    expect(guardadas()).toHaveLength(2);
+  });
+
+  it("credencial recusada tira só aquela fazenda, não o aparelho inteiro", async () => {
+    const { apiAuth } = await import("@/lib/api");
+    fetchFalso
+      .mockResolvedValueOnce(resposta("", 401))
+      .mockResolvedValueOnce(resposta(JSON.stringify({ detail: "refresh inválido" }), 401));
+
+    const erro = (await apiAuth("/animais").catch((e) => e)) as ErroApi;
+
+    expect(erro).toBeInstanceOf(ErroApi);
+    expect(erro.status).toBe(401);
+    // A outra fazenda continua no aparelho — inclusive para a fila subir depois.
+    expect(guardadas().map((s) => s.fazenda_id)).toEqual(["f2"]);
+  });
+
+  it("renovar o token de outra fazenda não muda a fazenda aberta", async () => {
+    // A fila sobe cada pesagem com o token da fazenda dela. Se renovar marcasse
+    // a fazenda como ativa, o técnico trocaria de fazenda sozinho, no meio do
+    // trabalho, por causa de uma pendência de outra.
+    const { apiAuth } = await import("@/lib/api");
+    fetchFalso
+      .mockResolvedValueOnce(resposta("", 401))
+      .mockResolvedValueOnce(
+        resposta(
+          JSON.stringify({
+            access_token: "novo2",
+            refresh_token: "r2b",
+            fazenda_id: "f2",
+            papel: "tecnico",
+            admin_master: false,
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(resposta(JSON.stringify({ ok: true })));
+
+    // Fala em nome da fazenda 2, com a 1 aberta na tela.
+    await apiAuth("/pesagens", { method: "POST" }, "f2");
+
+    const guardado = JSON.parse(localStorage.getItem("engorda.sessoes")!);
+    expect(guardado.ativa).toBe("f1");
+    expect(guardado.sessoes.find((s: { fazenda_id: string }) => s.fazenda_id === "f2").access_token).toBe("novo2");
+  });
+
+  it("renovação bem-sucedida repete a chamada e mantém as duas fazendas", async () => {
+    const { apiAuth } = await import("@/lib/api");
+    fetchFalso
+      .mockResolvedValueOnce(resposta("", 401))
+      .mockResolvedValueOnce(
+        resposta(
+          JSON.stringify({
+            access_token: "novo",
+            refresh_token: "r1b",
+            fazenda_id: "f1",
+            papel: "tecnico",
+            admin_master: false,
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(resposta(JSON.stringify({ itens: [] })));
+
+    await expect(apiAuth("/animais")).resolves.toEqual({ itens: [] });
+    expect(guardadas()).toHaveLength(2);
+  });
+});

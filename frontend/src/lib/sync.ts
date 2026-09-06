@@ -236,7 +236,7 @@ export async function baixarRebanho(): Promise<number> {
 export async function baixarSessoes(): Promise<void> {
   type SessaoDaFazenda = {
     fazenda_id: string;
-    nome: string;
+    fazenda_nome: string;
     papel: "tecnico" | "cliente" | "admin";
     access_token: string;
     refresh_token: string;
