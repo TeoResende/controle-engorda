@@ -418,20 +418,51 @@ async def detalhe_animal(
             idade -= 1
         idade = max(idade, 0)
 
+    # O peso ao nascer é um peso medido com data: fica na série, junto das
+    # pesagens. Deixá-lo só no cartão de indicadores fazia a curva do animal
+    # começar na primeira ida ao curral, escondendo meses de crescimento — e
+    # quem abre a ficha do bezerro quer justamente ver de onde ele partiu.
+    #
+    # Entra **marcado** (`origem="nascimento"`): não é coleta de ninguém, não
+    # tem áudio nem autor, e a tela precisa poder dizer isso em vez de exibir
+    # uma pesagem que nunca aconteceu.
     serie = []
-    for i, (pesagem, tecnico_nome) in enumerate(linhas):
+    if animal.data_nascimento and animal.peso_nascimento:
+        serie.append(
+            PesagemDaSerie(
+                data=animal.data_nascimento,
+                peso_kg=animal.peso_nascimento,
+                variacao=None,
+                tecnico_nome=None,
+                observacao_texto=None,
+                tem_audio=False,
+                origem="nascimento",
+            )
+        )
+
+    for pesagem, tecnico_nome in linhas:
+        anterior = serie[-1].peso_kg if serie else None
         serie.append(
             PesagemDaSerie(
                 pesagem_id=pesagem.id,
                 data=pesagem.data,
                 peso_kg=pesagem.peso_kg,
-                # Nula na primeira: não há anterior com que comparar.
-                variacao=(pesagem.peso_kg - linhas[i - 1][0].peso_kg) if i > 0 else None,
+                # Com o nascimento na série, a primeira pesagem passa a ter um
+                # anterior: a variação vira "quanto ganhou desde que nasceu",
+                # que é a leitura que faltava.
+                variacao=(pesagem.peso_kg - anterior) if anterior is not None else None,
                 tecnico_nome=tecnico_nome,
                 observacao_texto=pesagem.observacao_texto,
                 tem_audio=bool(pesagem.observacao_audio_url),
             )
         )
+
+    # Data de nascimento posterior a uma pesagem é dado errado, mas não pode
+    # virar uma curva que anda para trás: ordena e recalcula as variações.
+    if len(serie) > 1 and any(serie[i].data < serie[i - 1].data for i in range(1, len(serie))):
+        serie.sort(key=lambda p: p.data)
+        for i, ponto in enumerate(serie):
+            ponto.variacao = (ponto.peso_kg - serie[i - 1].peso_kg) if i > 0 else None
 
     return DetalheAnimal(
         animal_id=animal.id,

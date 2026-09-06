@@ -16,7 +16,21 @@ import { useId, useState } from "react";
  * virar rabisco no desktop e letra gigante no celular.
  */
 
-export type Ponto = { rotulo: string; valor: number };
+export type Ponto = {
+  rotulo: string;
+  valor: number;
+  /**
+   * Data do ponto (ISO). Quando **todos** os pontos têm, o eixo horizontal
+   * passa a ser proporcional ao tempo em vez de espaçado por posição.
+   *
+   * Isso deixou de ser detalhe quando o peso ao nascer entrou na curva do
+   * animal: entre nascer e a primeira ida ao curral podem passar oito meses, e
+   * espaçamento igual desenharia esse intervalo do mesmo tamanho de duas
+   * pesagens feitas com um mês de diferença — uma curva que mente sobre o
+   * ritmo de crescimento.
+   */
+  data?: string;
+};
 
 const L = 900;
 const A = 340;
@@ -35,11 +49,23 @@ function escalas(pontos: Ponto[]) {
   const largura = L - M.esquerda - M.direita;
   const altura = A - M.topo - M.baixo;
 
+  // Fração de 0 a 1 de cada ponto no eixo horizontal.
+  const tempos = pontos.map((p) => (p.data ? Date.parse(p.data) : NaN));
+  const proporcional = tempos.every((t) => !Number.isNaN(t));
+  const inicio = Math.min(...tempos);
+  const vao = Math.max(...tempos) - inicio;
+  const fracao = (i: number) => {
+    if (pontos.length === 1) return 0.5;
+    // Sem datas — ou com todas iguais, que dividiria por zero — volta ao
+    // espaçamento por posição.
+    if (!proporcional || vao === 0) return i / (pontos.length - 1);
+    return (tempos[i] - inicio) / vao;
+  };
+
   return {
     baixo,
     alto,
-    x: (i: number) =>
-      M.esquerda + (pontos.length === 1 ? largura / 2 : (i / (pontos.length - 1)) * largura),
+    x: (i: number) => M.esquerda + fracao(i) * largura,
     y: (v: number) => M.topo + altura - ((v - baixo) / (alto - baixo)) * altura,
   };
 }

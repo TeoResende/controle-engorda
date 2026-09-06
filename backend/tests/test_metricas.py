@@ -208,3 +208,69 @@ async def test_animal_desativado_sai_do_dashboard(client, dados, logar, rebanho)
     assert d["animais_pesados"] == 1
     assert Decimal(d["peso_medio"]) == Decimal("300.00")
     assert not [a for a in d["alertas"] if a["brinco"] == "7002"]
+
+
+async def test_o_peso_ao_nascer_entra_na_serie_do_animal(client, session, dados, logar):
+    """A curva do animal começava na primeira ida ao curral, escondendo meses de
+    crescimento. O peso ao nascer é um peso medido com data — pertence à série."""
+    animal = Animal(
+        fazenda_id=dados["fazenda_a"].id,
+        brinco="7010",
+        data_nascimento=date.today() - timedelta(days=300),
+        peso_nascimento=Decimal("32"),
+    )
+    session.add(animal)
+    await session.commit()
+    await _pesar(session, animal, 60, "200.00")
+
+    h = await logar(dados["cliente_a"])
+    serie = (await client.get(f"/metricas/animal/{animal.id}", headers=h)).json()["pesagens"]
+
+    assert [p["origem"] for p in serie] == ["nascimento", "pesagem"]
+    assert serie[0]["pesagem_id"] is None
+    assert Decimal(serie[0]["peso_kg"]) == Decimal("32")
+    # A primeira pesagem passa a ter um anterior: quanto ganhou desde que nasceu.
+    assert Decimal(serie[1]["variacao"]) == Decimal("168")
+
+
+async def test_animal_sem_peso_ao_nascer_nao_ganha_ponto_inventado(
+    client, session, dados, logar
+):
+    animal = Animal(
+        fazenda_id=dados["fazenda_a"].id,
+        brinco="7011",
+        data_nascimento=date.today() - timedelta(days=300),
+    )
+    session.add(animal)
+    await session.commit()
+    await _pesar(session, animal, 60, "200.00")
+
+    h = await logar(dados["cliente_a"])
+    serie = (await client.get(f"/metricas/animal/{animal.id}", headers=h)).json()["pesagens"]
+
+    assert [p["origem"] for p in serie] == ["pesagem"]
+    assert serie[0]["variacao"] is None
+
+
+async def test_gmd_continua_medido_entre_pesagens(client, session, dados, logar):
+    """O peso ao nascer entra na curva, mas **não** no GMD: o indicador é o
+    ganho entre pesagens, e mudá-lo em silêncio mexeria nos alertas e nos
+    números do rebanho inteiro. Se um dia virar "GMD de vida", que seja decisão
+    tomada, não efeito colateral."""
+    animal = Animal(
+        fazenda_id=dados["fazenda_a"].id,
+        brinco="7012",
+        data_nascimento=date.today() - timedelta(days=120),
+        peso_nascimento=Decimal("30"),
+    )
+    session.add(animal)
+    await session.commit()
+    await _pesar(session, animal, 30, "100.00")
+    await _pesar(session, animal, 0, "130.00")
+
+    h = await logar(dados["cliente_a"])
+    detalhe = (await client.get(f"/metricas/animal/{animal.id}", headers=h)).json()
+
+    assert Decimal(detalhe["peso_inicial"]) == Decimal("100")
+    assert Decimal(detalhe["ganho_total"]) == Decimal("30")
+    assert detalhe["dias_acompanhado"] == 30

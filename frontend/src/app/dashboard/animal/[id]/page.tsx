@@ -23,7 +23,9 @@ import {
 } from "@/lib/formato";
 
 type Pesagem = {
-  pesagem_id: string;
+  /** Nulo no ponto de nascimento: ele não é uma pesagem, é o peso do cadastro. */
+  pesagem_id: string | null;
+  origem: "pesagem" | "nascimento";
   data: string;
   peso_kg: string;
   variacao: string | null;
@@ -84,6 +86,10 @@ export default function DetalheAnimal() {
   const pontos: Ponto[] = dados.pesagens.map((p) => ({
     rotulo: formatarData(p.data).slice(0, 5),
     valor: Number(p.peso_kg),
+    // Com o nascimento na série, o eixo precisa respeitar o tempo: senão os
+    // oito meses entre nascer e a primeira pesagem apareceriam do mesmo
+    // tamanho de duas pesagens com um mês de diferença.
+    data: p.data,
   }));
 
   const informacoes: [string, string][] = [
@@ -226,11 +232,17 @@ export default function DetalheAnimal() {
                 >
                   {formatarVariacao(p.variacao)}
                 </Celula>
-                <Celula rotulo="Técnico">{p.tecnico_nome ?? "—"}</Celula>
+                <Celula rotulo="Técnico">
+                  {p.origem === "nascimento" ? (
+                    <Chip tom="claro">Nascimento</Chip>
+                  ) : (
+                    (p.tecnico_nome ?? "—")
+                  )}
+                </Celula>
                 <Celula rotulo="Observação" className="text-verde/80">
                   <span className="flex flex-col items-end gap-1.5 md:items-start">
                     <span>{p.observacao_texto ?? "—"}</span>
-                    {p.tem_audio && (
+                    {p.tem_audio && p.pesagem_id && (
                       <span className="print:hidden">
                         <AudioObservacao pesagemId={p.pesagem_id} />
                       </span>
@@ -239,12 +251,16 @@ export default function DetalheAnimal() {
                 </Celula>
                 {podeEditar && (
                   <Celula className="print:hidden md:text-right">
+                    {/* O peso ao nascer não se corrige aqui: ele é do cadastro
+                        do animal, e mexer nele é editar o animal. */}
+                    {p.pesagem_id && (
                     <CorrigirPesagem
                       pesagemId={p.pesagem_id}
                       peso={p.peso_kg}
                       data={p.data}
                       aoMudar={carregar}
                     />
+                    )}
                   </Celula>
                 )}
               </Linha>

@@ -774,6 +774,37 @@ complexidade sem ganho.
   bruto: 294,02 kg contra 297,94 kg.
 - **Pesagem ou animal desativado sai de tudo** — média, GMD e alertas.
 
+### O peso ao nascer entra na curva
+
+`peso_nascimento` é um peso medido, com data — e ficava só no cartão de
+indicadores. A curva do animal começava na primeira ida ao curral, escondendo
+meses de crescimento; quem abre a ficha do bezerro quer justamente ver de onde
+ele partiu.
+
+Agora ele é o primeiro ponto da série (`origem: "nascimento"`), quando o animal
+tem **data e peso** de nascimento. Consequências pensadas:
+
+- **Vai marcado.** Não é coleta de ninguém: `pesagem_id` nulo, sem autor e sem
+  áudio. A tela mostra "Nascimento" no lugar do técnico e não oferece
+  *Corrigir* — mexer nesse peso é editar o cadastro do animal.
+- **A primeira pesagem ganha variação**: "quanto ganhou desde que nasceu", que
+  era a leitura que faltava.
+- **O GMD não mudou.** Continua sendo o ganho entre pesagens
+  (`peso_inicial`, `ganho_total`, `dias_acompanhado`). Incluir o nascimento ali
+  mexeria nos alertas e nos números do rebanho inteiro de toda fazenda que
+  preenche esse campo — se um dia virar "GMD de vida", que seja decisão tomada,
+  não efeito colateral. Há teste travando isso.
+- **Data de nascimento posterior a uma pesagem** é dado errado, mas não pode
+  virar curva andando para trás: a série é reordenada e as variações
+  recalculadas.
+
+**O eixo do gráfico passou a ser proporcional ao tempo** quando todos os pontos
+têm data (`Ponto.data`). Deixou de ser detalhe com o nascimento na curva: entre
+nascer e a primeira ida ao curral podem passar oito meses, e espaçar por posição
+desenharia esse intervalo do mesmo tamanho de duas pesagens feitas com um mês de
+diferença — uma curva que mente sobre o ritmo de crescimento. Sem datas, ou com
+todas iguais, volta ao espaçamento por posição.
+
 ### Alertas
 
 | Tipo | Quando | Ordem |

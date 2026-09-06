@@ -1,6 +1,7 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -75,15 +76,20 @@ class VisaoGeral(BaseModel):
 
 class PesagemDaSerie(BaseModel):
     # Necessário para tocar o áudio original da observação a partir da tela.
-    pesagem_id: uuid.UUID
+    # Nulo no ponto de nascimento, que não é uma pesagem: é o peso que veio no
+    # cadastro do animal.
+    pesagem_id: uuid.UUID | None = None
     data: date
     peso_kg: Decimal
-    # Variação em relação à pesagem anterior. Nula na primeira, que não tem
+    # Variação em relação ao ponto anterior. Nula no primeiro, que não tem
     # anterior — zero ali seria lido como "não ganhou nada".
     variacao: Decimal | None
     tecnico_nome: str | None
     observacao_texto: str | None
     tem_audio: bool
+    # "nascimento" marca o peso ao nascer, que entra na série mas não é uma
+    # pesagem: sem a marca, a tela mostraria uma coleta que ninguém fez.
+    origem: Literal["pesagem", "nascimento"] = "pesagem"
 
 
 class DetalheAnimal(BaseModel):
