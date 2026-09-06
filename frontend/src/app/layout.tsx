@@ -30,6 +30,13 @@ export const metadata: Metadata = {
   },
   description: "Acompanhamento da evolução de peso de bezerros em engorda.",
   manifest: "/manifest.webmanifest",
+  // O ícone da aba sai da mesma rota pública do manifesto: configurável pelo
+  // admin master e, sem configuração, o que vem com o produto. Rota autenticada
+  // não serve aqui — o navegador busca favicon sem cabeçalho nenhum.
+  icons: {
+    icon: `${process.env.NEXT_PUBLIC_API_URL ?? "/api"}/sistema/icone`,
+    apple: `${process.env.NEXT_PUBLIC_API_URL ?? "/api"}/sistema/icone`,
+  },
   appleWebApp: { capable: true, title: "Engorda", statusBarStyle: "default" },
 };
 

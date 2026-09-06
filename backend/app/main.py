@@ -10,6 +10,7 @@ from app.api.lotes import router as lotes_router
 from app.api.metricas import router as metricas_router
 from app.api.pesagens import router as pesagens_router
 from app.api.setup import router as setup_router
+from app.api.sistema import router as sistema_router
 import logging
 
 from app.core.config import ConfiguracaoInsegura, conferir_para_producao, settings
@@ -88,6 +89,7 @@ app.include_router(animais_router)
 app.include_router(pesagens_router)
 app.include_router(metricas_router)
 app.include_router(exportar_router)
+app.include_router(sistema_router)
 
 
 @app.get("/")

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Celula, Linha, Tabela } from "@/components/tabela";
+import { IconeDoSistema } from "@/components/icone-do-sistema";
 import { IdentidadeVisual } from "@/components/identidade-visual";
 import { TrocarSenha } from "@/components/trocar-senha";
 import { Aviso, Botao, Campo, Cartao, Chip, Esqueleto, Selecao } from "@/components/ui";
@@ -134,6 +135,9 @@ export default function Configuracoes() {
       </header>
 
       <IdentidadeVisual />
+
+      {/* Só aparece para o admin master: o ícone é do produto, não da fazenda. */}
+      <IconeDoSistema />
 
       <TrocarSenha />
 

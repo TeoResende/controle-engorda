@@ -20,6 +20,7 @@ from app.schemas.auth import (
     UsuarioResponse,
 )
 from app.schemas.comum import Pagina
+from app.schemas.sistema import SistemaResponse
 from app.schemas.fazenda import FazendaAtualizar, FazendaCriar, FazendaResponse
 from app.schemas.lote import (
     LoteAtualizar,
@@ -68,6 +69,7 @@ __all__ = [
     "PrimeiroAcessoRequest",
     "RedefinirSenhaRequest",
     "SetupStatusResponse",
+    "SistemaResponse",
     "RefreshRequest",
     "SessaoDaFazenda",
     "TokenResponse",

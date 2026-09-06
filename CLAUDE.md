@@ -976,10 +976,43 @@ Vale para qualquer arquivo servido pela API: o áudio da observação já usava 
 caminho (`components/audio-observacao.tsx`) e o CSV também. **Rota autenticada
 não entra em `src` nem em `href`.**
 
-**O ícone do PWA continua único por instalação.** O manifesto é do domínio, não
-da fazenda — num deploy multi-fazenda, o ícone instalado no celular não pode
-variar por tenant. Personalizar isso exigiria manifesto dinâmico por
-subdomínio, o que só faz sentido com domínio próprio por cliente (M9).
+No dashboard aparecem **logo e nome juntos**, não um no lugar do outro: a logo
+pode ser um símbolo sem palavra nenhuma, e quem atende mais de uma fazenda
+precisa ler de qual está operando. No app do técnico, onde a barra tem a largura
+de um celular, continua sendo um ou outro.
+
+### Ícone do aplicativo — do produto, não da fazenda
+
+A distinção que confunde: a **logo** identifica o cliente dentro do sistema e é
+de cada fazenda; o **ícone** é o que o navegador põe na aba e o Android grava na
+tela inicial. O manifesto do PWA é do domínio, então o ícone é **um só por
+instalação** — num deploy multi-fazenda ele não pode variar por tenant.
+Personalizar por cliente exigiria domínio próprio por cliente.
+
+Por isso ele é configurável, mas em outro lugar e por outra pessoa: em
+*Configurações*, numa seção que **só o admin master enxerga** (é ele o dono do
+SaaS). Guardado em `configuracao_sistema`, tabela de chave e valor global —
+**sem RLS de propósito**: a tabela não pertence a fazenda nenhuma, e a política
+esconderia a linha de toda requisição sem tenant, inclusive da tela de login.
+
+**`GET /sistema/icone` é público, e tem que ser.** Favicon e ícone de manifesto
+são buscados pelo próprio navegador, sem cabeçalho de autenticação — exigir
+token ali repetiria no ícone o mesmo defeito silencioso que manteve a logo
+invisível. Não há o que proteger: o ícone do produto é público como o de
+qualquer site.
+
+**Sem ícone configurado a rota devolve o padrão, não 404.** Assim o endereço no
+manifesto e no `<link rel="icon">` é sempre o mesmo e sempre funciona — o padrão
+mora em `backend/app/estaticos/icone-padrao.png`. É também por causa desse
+endereço que `/manifest.webmanifest` deixou de ser arquivo estático e virou rota
+(`src/app/manifest.ts`): um JSON fixo em `public/` não conseguiria montar uma URL
+que depende de `NEXT_PUBLIC_API_URL`. Os PNGs de `public/icones` seguem
+declarados no fim da lista, como último recurso se a API estiver fora do ar na
+hora de instalar o app.
+
+`versao_do_icone` é o instante da última troca **em milissegundos**, usado como
+cache-buster na tela de configuração. Milissegundos porque duas trocas dentro do
+mesmo segundo dariam a mesma versão, e o navegador seguiria mostrando o antigo.
 
 ### Limites de alerta
 

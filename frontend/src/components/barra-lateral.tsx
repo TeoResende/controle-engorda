@@ -91,13 +91,13 @@ export function BarraLateral({
       >
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-2">
+            {/* Logo e nome juntos: a logo pode ser um símbolo sem nome, e quem
+                atende mais de uma fazenda precisa ler de qual está operando. */}
             <LogoFazenda
-              alt={atual?.nome ?? "Logo da fazenda"}
-              className="mb-1 max-h-10 max-w-full object-contain object-left"
-              alternativa={
-                <p className="font-titulo font-extrabold text-fundo">{atual?.nome ?? "…"}</p>
-              }
+              alt=""
+              className="mb-2 max-h-9 max-w-full object-contain object-left"
             />
+            <p className="font-titulo font-extrabold text-fundo">{atual?.nome ?? "…"}</p>
             {eu && eu.fazendas.length > 1 && (
               <button
                 onClick={() => setTrocando((v) => !v)}
