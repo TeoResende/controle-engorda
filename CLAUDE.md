@@ -954,6 +954,28 @@ A marca é guardada no IndexedDB junto com a identidade do usuário: no curral s
 sinal, buscar da API deixaria o cabeçalho vazio e o app abriria com as cores
 padrão antes de trocar de tema no meio do carregamento.
 
+**`<img src>` não serve para a logo — e a falha é silenciosa.** A rota exige
+cabeçalho de autenticação e o navegador busca `src` sem cabeçalho nenhum: a
+resposta era 401 e a imagem não aparecia em nenhum dos quatro lugares que a
+mostram (barra lateral, barra do técnico, configurações e cabeçalho de
+impressão). Nada indicava a causa — quem enviava a logo concluía que o envio
+não tinha funcionado. `LogoFazenda` (`components/logo-fazenda.tsx`) busca como
+blob, com o token, e exibe de uma URL local; as regras de cache estão em
+`logoDaFazenda()` (`lib/marca.ts`), com teste:
+
+- **o guardado aparece primeiro**, e a rede só troca depois — pinta na hora e
+  funciona sem sinal;
+- **404 apaga a cópia local**: logo removida que continua aparecendo é pior que
+  logo nenhuma;
+- **falha de rede preserva o guardado** — perder a marca justamente offline
+  passa a impressão de app quebrado;
+- **a chave é por fazenda** (`logo:<fazenda_id>`): quem atende duas troca sem
+  internet (seção 8.14), e uma chave única mostraria a logo da outra.
+
+Vale para qualquer arquivo servido pela API: o áudio da observação já usava esse
+caminho (`components/audio-observacao.tsx`) e o CSV também. **Rota autenticada
+não entra em `src` nem em `href`.**
+
 **O ícone do PWA continua único por instalação.** O manifesto é do domínio, não
 da fazenda — num deploy multi-fazenda, o ícone instalado no celular não pode
 variar por tenant. Personalizar isso exigiria manifesto dinâmico por

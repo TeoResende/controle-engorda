@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Balao, Caixa, Engrenagem, Grade, Pessoa } from "@/components/icones";
-import { API_URL, apiAuth } from "@/lib/api";
+import { LogoFazenda } from "@/components/logo-fazenda";
+import { apiAuth } from "@/lib/api";
 import { baixarMarca, marcaGuardada } from "@/lib/marca";
 import { iniciais } from "@/lib/formato";
 import { limparSessao, salvarSessao, type Sessao } from "@/lib/sessao";
@@ -45,12 +46,12 @@ export function BarraLateral({
   const router = useRouter();
   const [eu, setEu] = useState<Eu | null>(null);
   const [trocando, setTrocando] = useState(false);
-  const [temLogo, setTemLogo] = useState(false);
 
   useEffect(() => {
     apiAuth<Eu>("/auth/eu").then(setEu).catch(() => setEu(null));
-    void marcaGuardada().then((m) => m && setTemLogo(m.tem_logo));
-    void baixarMarca().then((m) => m && setTemLogo(m.tem_logo));
+    // Mantém cores e nome em dia; a logo se vira sozinha em <LogoFazenda>.
+    void marcaGuardada();
+    void baixarMarca();
   }, []);
 
   useEffect(() => {
@@ -90,16 +91,13 @@ export function BarraLateral({
       >
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="px-2">
-            {temLogo ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={`${API_URL}/fazendas/atual/logo`}
-                alt={atual?.nome ?? "Logo da fazenda"}
-                className="mb-1 max-h-10 max-w-full object-contain object-left"
-              />
-            ) : (
-              <p className="font-titulo font-extrabold text-fundo">{atual?.nome ?? "…"}</p>
-            )}
+            <LogoFazenda
+              alt={atual?.nome ?? "Logo da fazenda"}
+              className="mb-1 max-h-10 max-w-full object-contain object-left"
+              alternativa={
+                <p className="font-titulo font-extrabold text-fundo">{atual?.nome ?? "…"}</p>
+              }
+            />
             {eu && eu.fazendas.length > 1 && (
               <button
                 onClick={() => setTrocando((v) => !v)}

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { API_URL } from "@/lib/api";
-import { marcaGuardada, type Marca } from "@/lib/marca";
+import { LogoFazenda } from "@/components/logo-fazenda";
+import { baixarMarca, marcaGuardada, type Marca } from "@/lib/marca";
 
 /**
  * Cabeçalho e rodapé do documento impresso.
@@ -33,7 +33,11 @@ export function CabecalhoImpressao({
   const [gerado, setGerado] = useState("");
 
   useEffect(() => {
+    // O guardado pinta na hora; a rede confirma logo depois. Depender só do
+    // guardado deixava o nome da fazenda em branco quando outra tela ainda não
+    // tinha baixado a marca — o relatório saía sem dizer de quem é.
     void marcaGuardada().then((m) => m && setMarca(m));
+    void baixarMarca().then((m) => m && setMarca(m));
     // Só no cliente: a data no servidor seria de outro fuso e de outro momento.
     setGerado(
       new Date().toLocaleString("pt-BR", {
@@ -51,14 +55,7 @@ export function CabecalhoImpressao({
       <div className="cabecalho-impressao hidden print:block">
         <div className="flex items-end justify-between gap-4">
           <div className="flex items-center gap-3">
-            {marca?.tem_logo && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={`${API_URL}/fazendas/atual/logo`}
-                alt=""
-                className="max-h-9 max-w-32 object-contain"
-              />
-            )}
+            <LogoFazenda alt="" className="max-h-9 max-w-32 object-contain" />
             <div>
               <p className="font-titulo text-sm font-extrabold">{marca?.nome ?? ""}</p>
               <p className="text-[11px]">

@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { LogoFazenda } from "@/components/logo-fazenda";
 import { Aviso, Cartao } from "@/components/ui";
-import { API_URL, apiAuth, ErroApi } from "@/lib/api";
+import { apiAuth, ErroApi } from "@/lib/api";
 import { aplicarMarca, baixarMarca, canaisParaHex, type Marca } from "@/lib/marca";
 import { lerSessao } from "@/lib/sessao";
 
@@ -119,18 +120,16 @@ export function IdentidadeVisual() {
       {/* --- Logo --- */}
       <div className="mt-4 flex flex-wrap items-center gap-4">
         <div className="flex h-20 w-40 items-center justify-center rounded-xl border border-borda bg-white p-2">
-          {fazenda.tem_logo ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={`${API_URL}/fazendas/atual/logo?v=${versaoLogo}`}
-              alt={`Logo da ${fazenda.nome}`}
-              className="max-h-full max-w-full object-contain"
-            />
-          ) : (
-            <span className="px-2 text-center text-xs text-verde/45">
-              Sem logo — o nome da fazenda aparece no lugar
-            </span>
-          )}
+          <LogoFazenda
+            versao={versaoLogo}
+            alt={`Logo da ${fazenda.nome}`}
+            className="max-h-full max-w-full object-contain"
+            alternativa={
+              <span className="px-2 text-center text-xs text-verde/45">
+                Sem logo — o nome da fazenda aparece no lugar
+              </span>
+            }
+          />
         </div>
 
         {podeEditar && (

@@ -1,5 +1,6 @@
-import { apiAuth } from "./api";
+import { API_URL, apiAuth } from "./api";
 import { gravarMeta, lerMeta } from "./db";
+import { lerSessao } from "./sessao";
 
 /**
  * Identidade visual da fazenda.
@@ -103,4 +104,50 @@ export async function baixarMarca(): Promise<Marca | undefined> {
   } catch {
     return lerMeta<Marca>(CHAVE);
   }
+}
+
+/**
+ * A logo da fazenda, como blob.
+ *
+ * Não é `<img src>` por um motivo que custou caro: a rota exige cabeçalho de
+ * autenticação e o navegador busca `src` sem cabeçalho nenhum — toda tentativa
+ * voltava 401 e a imagem sumia da barra lateral, da barra do técnico, das
+ * configurações e do relatório impresso, sem erro visível em lugar nenhum.
+ *
+ * As três regras que importam, e por quê:
+ *
+ * - **o guardado vem primeiro** — aparece na hora e funciona sem sinal;
+ * - **404 apaga a cópia** — logo removida que continua aparecendo é pior que
+ *   logo nenhuma;
+ * - **falha de rede preserva o que está guardado** — no curral, ficar sem marca
+ *   justamente offline passa a impressão de app quebrado.
+ *
+ * Guardada **por fazenda**: quem atende duas troca entre elas sem internet
+ * (seção 8.14), e uma chave única mostraria a logo da fazenda errada.
+ */
+export async function logoDaFazenda(fazenda_id: string): Promise<Blob | null> {
+  const chave = `logo:${fazenda_id}`;
+  const guardada = await lerMeta<Blob>(chave);
+
+  try {
+    const sessao = lerSessao();
+    const resposta = await fetch(`${API_URL}/fazendas/atual/logo`, {
+      headers: { Authorization: `Bearer ${sessao?.access_token ?? ""}` },
+    });
+    if (resposta.status === 404) {
+      await gravarMeta(chave, null);
+      return null;
+    }
+    if (!resposta.ok) return guardada ?? null;
+    const blob = await resposta.blob();
+    await gravarMeta(chave, blob);
+    return blob;
+  } catch {
+    return guardada ?? null;
+  }
+}
+
+/** O que já está no aparelho, sem tocar na rede. */
+export async function logoGuardada(fazenda_id: string): Promise<Blob | null> {
+  return (await lerMeta<Blob>(`logo:${fazenda_id}`)) ?? null;
 }
