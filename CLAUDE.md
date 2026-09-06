@@ -1231,9 +1231,26 @@ animal cadastrado por engano deixa dois registros disputando a mesma identidade,
 e o índice parcial impede o novo de existir enquanto o velho estiver ativo.
 Desativar resolve quase tudo e continua sendo o caminho normal.
 
-Por isso: **admin apenas**, exige o **brinco digitado** como confirmação — a
-diferença entre um clique errado na lista e uma decisão — e fica registrada no
-log com quem pediu, quantas pesagens foram junto e por quê.
+Por isso: **admin apenas** (o master também, que opera como admin), exige o
+**brinco digitado** como confirmação — a diferença entre um clique errado na
+lista e uma decisão — e fica registrada no log com quem pediu, quantas pesagens
+foram junto e por quê.
+
+**Onde fica:** na ficha do animal (`/dashboard/animal/[id]`), numa seção
+*Reciclar o brinco* que só admin e master enxergam. A rota existia desde o M3 e
+**nenhuma tela a chamava** — quem precisava reciclar uma tag não tinha caminho
+nenhum, como aconteceu com o cadastro de fazendas.
+
+A seção insiste no caminho normal antes de oferecer o definitivo, porque são
+casos diferentes e o certo quase sempre é o primeiro:
+
+| Situação | O que fazer |
+|---|---|
+| O animal existiu e saiu do rebanho | **Editar cadastro → vendido/morto/transferido.** O índice de brinco só considera ativos, então o número libera na hora — e o histórico de peso, que é o valor do sistema, fica |
+| O cadastro nunca deveria ter existido (duplicado, brinco trocado por engano) | Excluir definitivamente |
+
+Os dois caminhos têm teste: apagar libera o número, e vender libera o número
+mantendo o animal antigo consultável.
 
 Detalhe que custou um 500: sem `passive_deletes=True` na relação, o SQLAlchemy
 tenta anular `animal_id` linha a linha antes de apagar o animal, e a coluna é

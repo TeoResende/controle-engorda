@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { AudioObservacao } from "@/components/audio-observacao";
 import { CorrigirPesagem } from "@/components/corrigir-pesagem";
+import { ExcluirAnimal } from "@/components/excluir-animal";
 import { EditarAnimal } from "@/components/editar-animal";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { CabecalhoImpressao } from "@/components/impressao";
@@ -61,6 +62,9 @@ export default function DetalheAnimal() {
   const sessao = lerSessao();
   // Cliente é somente leitura: o servidor recusaria, e a tela não oferece.
   const podeEditar = sessao?.papel !== "cliente" || sessao?.admin_master;
+  // Exclusão definitiva é de admin (o servidor exige `AdminDep`): técnico
+  // registra peso, não decide apagar histórico.
+  const podeExcluir = sessao?.papel === "admin" || sessao?.admin_master;
 
   const carregar = useCallback(() => {
     apiAuth<Detalhe>(`/metricas/animal/${id}`)
@@ -268,6 +272,25 @@ export default function DetalheAnimal() {
           </Tabela>
         )}
       </Cartao>
+
+      {podeExcluir && (
+        <Cartao className="print:hidden">
+          <h2 className="font-titulo font-extrabold text-verde">Reciclar o brinco</h2>
+          <p className="mt-0.5 max-w-2xl text-sm text-verde/60">
+            Para usar o brinco {dados.brinco} em outro animal, marque este como{" "}
+            <strong>vendido, morto ou transferido</strong> em Editar cadastro: o número libera
+            na hora e o histórico de peso continua aqui. A exclusão abaixo é para o cadastro
+            errado — aquele que nunca deveria ter existido.
+          </p>
+          <div className="mt-4">
+            <ExcluirAnimal
+              animalId={id}
+              brinco={dados.brinco}
+              pesagens={dados.pesagens.filter((p) => p.origem === "pesagem").length}
+            />
+          </div>
+        </Cartao>
+      )}
     </div>
   );
 }

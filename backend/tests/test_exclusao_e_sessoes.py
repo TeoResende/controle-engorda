@@ -128,3 +128,61 @@ async def test_master_recebe_sessao_de_todas(client, dados, logar):
 
 async def test_sessoes_exige_estar_logado(client):
     assert (await client.get("/auth/sessoes")).status_code == 401
+
+
+async def test_reciclar_o_brinco_apagando_o_cadastro_errado(client, session, dados, logar):
+    """O caminho que a tela oferece ao admin: o cadastro errado sai de vez e o
+    número volta a ficar livre.
+
+    Para o animal que existiu de verdade o certo é marcá-lo como vendido/morto
+    — o brinco libera igual e o histórico de peso fica (teste abaixo).
+    """
+    admin = await logar(dados["admin_a"])
+    criado = await client.post("/animais", json={"brinco": "4460"}, headers=admin)
+    animal_id = criado.json()["id"]
+
+    # Enquanto ele existe, o número está ocupado.
+    repetido = await client.post("/animais", json={"brinco": "4460"}, headers=admin)
+    assert repetido.status_code == 409
+
+    apagado = await client.post(
+        f"/animais/{animal_id}/excluir",
+        json={"brinco": "4460", "motivo": "cadastro duplicado"},
+        headers=admin,
+    )
+    assert apagado.status_code == 204
+
+    de_novo = await client.post("/animais", json={"brinco": "4460"}, headers=admin)
+    assert de_novo.status_code == 201
+    assert de_novo.json()["id"] != animal_id
+
+
+async def test_vender_tambem_libera_o_brinco_e_preserva_o_historico(
+    client, session, dados, logar
+):
+    """É o caminho normal da reciclagem, e o que a tela recomenda antes de
+    oferecer a exclusão: o índice de brinco só considera animais ativos."""
+    admin = await logar(dados["admin_a"])
+    velho = (await client.post("/animais", json={"brinco": "4461"}, headers=admin)).json()
+
+    await client.patch(f"/animais/{velho['id']}", json={"status": "vendido"}, headers=admin)
+
+    novo = await client.post("/animais", json={"brinco": "4461"}, headers=admin)
+    assert novo.status_code == 201
+
+    # O antigo continua consultável, com o histórico dele.
+    antigo = await client.get(f"/animais/{velho['id']}", headers=admin)
+    assert antigo.status_code == 200
+    assert antigo.json()["status"] == "vendido"
+
+
+async def test_admin_master_tambem_exclui(client, dados, logar):
+    """Ele opera qualquer fazenda como admin — a tela mostra o botão para ele, e
+    o servidor precisa concordar."""
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    criado = await client.post("/animais", json={"brinco": "4462"}, headers=master)
+
+    apagado = await client.post(
+        f"/animais/{criado.json()['id']}/excluir", json={"brinco": "4462"}, headers=master
+    )
+    assert apagado.status_code == 204
