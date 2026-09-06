@@ -308,11 +308,13 @@ a tela fica em *Configurações → Equipe → Fazendas*, por pessoa.
   ninguém capaz de gerir membros.
 - **`GET /animais/por-brinco/{brinco}`** é a rota que a tela de coleta vai usar
   depois da leitura NFC (M6); ela só encontra animal ativo e não desativado.
-- A tela de coleta mostra as **últimas pesagens do animal** logo abaixo do
-  formulário: é como o técnico confere se o que acabou de registrar entrou, e
-  como se pega erro de digitação (um 55 no lugar de 550) antes de salvar. As da
-  fila local aparecem primeiro e marcadas — some-las faria parecer que o registro
-  se perdeu. Sem sinal, a lista fica vazia com aviso, e isso não é erro.
+- A tela de coleta mostra as **últimas pesagens do animal** como referência
+  (pegar um 55 no lugar de 550). As da fila local aparecem primeiro e marcadas —
+  some-las faria parecer que o registro se perdeu. Sem sinal, a lista fica vazia
+  com aviso, e isso não é erro. **Ela fica depois dos botões Salvar/Cancelar**,
+  não antes: com muitas pesagens, a lista empurrava o Salvar para fora da tela e
+  o técnico tinha que rolar para alcançá-lo. O peso do animal atual já aparece no
+  cartão do topo; o histórico é consulta, não bloqueio.
 - Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
   e membros vêm como lista simples, por serem poucos.
 

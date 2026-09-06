@@ -235,9 +235,10 @@ function Conteudo() {
         )}
         {erro && <Aviso tom="erro">{erro}</Aviso>}
 
-        <UltimasPesagens animalId={animal?.id ?? null} brinco={brinco} />
-
-        <div className="mt-auto flex flex-col gap-2 pt-4">
+        {/* Os botões vêm logo depois do formulário, não no fim da tela: com
+            muitas "últimas pesagens" o técnico tinha que rolar para alcançar o
+            Salvar. O histórico é referência — desce para baixo dos botões. */}
+        <div className="flex flex-col gap-2 pt-2">
           <Botao
             type="submit"
             variante="destaque"
@@ -254,6 +255,8 @@ function Conteudo() {
             Cancelar
           </button>
         </div>
+
+        <UltimasPesagens animalId={animal?.id ?? null} brinco={brinco} />
       </form>
     </div>
   );
