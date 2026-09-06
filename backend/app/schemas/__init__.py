@@ -37,7 +37,13 @@ from app.schemas.pesagem import (
     RespostaLote,
     ResultadoEnvio,
 )
-from app.schemas.usuario import MembroAtualizar, MembroCriar, MembroResponse
+from app.schemas.usuario import (
+    MembroAtualizar,
+    MembroCriar,
+    MembroResponse,
+    VinculoAtualizar,
+    VinculoDoUsuario,
+)
 
 __all__ = [
     "AnimalAtualizar",
@@ -70,6 +76,8 @@ __all__ = [
     "RedefinirSenhaRequest",
     "SetupStatusResponse",
     "SistemaResponse",
+    "VinculoAtualizar",
+    "VinculoDoUsuario",
     "RefreshRequest",
     "SessaoDaFazenda",
     "TokenResponse",

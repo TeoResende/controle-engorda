@@ -18,21 +18,23 @@ import { fazendaAtiva, lerSessoes, trocarFazendaAtiva, type Sessao } from "@/lib
  * O vínculo continua vindo do token, como manda o isolamento multi-tenant: o
  * que muda é que ele fica **à vista**, e trocável antes de começar.
  *
- * `podeTrocar` é decidido por tela, não por gosto:
- *
- * - **cadastro**: pode. É a escolha de onde o animal nasce, e ela precisa
- *   acontecer antes de salvar.
- * - **coleta**: não. Trocar no meio faria o mesmo brinco resolver para outro
- *   animal, e o peso já digitado iria para o bicho errado. Lá a troca é antes
- *   de entrar, pelo seletor em *Mais*.
+ * **Trocar funciona nas duas telas** — o técnico está em campo, passa de um
+ * curral para outro e não vai voltar ao menu para isso. O que a troca não pode
+ * é levar junto o que já foi digitado: o mesmo brinco resolve para outro animal
+ * na outra fazenda, e o peso digitado iria para o bicho errado. Por isso
+ * `temRascunho`: com algo preenchido, a troca pergunta antes e descarta.
  */
 export function FazendaDaTarefa({
   acao,
-  podeTrocar = false,
+  temRascunho = false,
+  aviso,
 }: {
   /** O verbo da tela: "Cadastrando em", "Pesando em". */
   acao: string;
-  podeTrocar?: boolean;
+  /** Há algo digitado que a troca vai descartar (peso, observação, brinco). */
+  temRascunho?: boolean;
+  /** O que dizer antes de descartar. Sem isto a pergunta seria genérica. */
+  aviso?: string;
 }) {
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [ativa, setAtiva] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export function FazendaDaTarefa({
             {acao} <span className="font-titulo font-bold text-verde">{nome}</span>
           </span>
         </p>
-        {podeTrocar && varias && (
+        {varias && (
           <button
             type="button"
             onClick={() => setEscolhendo((v) => !v)}
@@ -77,6 +79,11 @@ export function FazendaDaTarefa({
                 type="button"
                 onClick={() => {
                   if (s.fazenda_id === ativa) return setEscolhendo(false);
+                  // O que já foi digitado não atravessa a troca: na outra
+                  // fazenda o mesmo brinco é outro animal.
+                  if (temRascunho && !window.confirm(aviso ?? "Trocar de fazenda descarta o que você digitou aqui. Continuar?")) {
+                    return;
+                  }
                   // Recarrega em vez de só trocar o estado: rebanho, fila e
                   // contadores são todos por fazenda, e atualizar cada um na
                   // mão deixaria alguma parte da tela com dado da anterior.

@@ -275,6 +275,30 @@ Quando a sincronização falha por papel (e não por rede), a tela da fila diz i
 com todas as letras: insistir não resolveria, e o técnico precisa saber que o
 caminho é pedir a mudança de papel a um administrador.
 
+### A mesma pessoa em várias fazendas
+
+O modelo permite desde o M1 — o vínculo é por fazenda, e o papel também: a mesma
+conta pode ser técnica numa fazenda e cliente noutra. O que faltava era o
+caminho. Montar o arranjo exigia entrar em cada fazenda e recadastrar a pessoa,
+inventando uma senha que o servidor ia ignorar; dá trabalho o bastante para
+alguém desistir e **criar duas contas para a mesma pessoa** — e aí a autoria das
+pesagens se parte em duas.
+
+`GET/PUT/DELETE /membros/{usuario_id}/fazendas[/{fazenda_id}]` resolvem isso, e
+a tela fica em *Configurações → Equipe → Fazendas*, por pessoa.
+
+- **Só o admin master.** Dizer ao admin da fazenda A que fulano também trabalha
+  na B vazaria a existência de outro cliente. As rotas usam `SessaoGlobalDep`
+  porque cruzam fazendas por natureza — é a justificativa escrita que a seção
+  8.8 exige.
+- **`PUT`, não `POST`**: a operação é "esta pessoa tem este papel nesta
+  fazenda". Repetir não duplica vínculo, e quem saiu volta reativando o antigo,
+  preservando desde quando trabalha ali.
+- **Admin master não recebe vínculo**: 409. Ele já alcança toda fazenda ativa
+  sem vínculo nenhum, e oferecer isso na tela faria o operador achar que precisa
+  fazer algo que não muda nada.
+- Fazenda desativada não recebe gente: 409 pedindo para reativar antes.
+
 ### Outras decisões que valem para os próximos marcos
 
 - **Usuário é global, vínculo é por fazenda.** Adicionar membro com e-mail já
@@ -436,9 +460,11 @@ pedido. O que estava errado era o entorno dele, em dois pontos:
    aberta — sem erro, sem aviso, e o animal simplesmente não aparecia no rebanho
    onde deveria estar. `FazendaDaTarefa`
    (`components/fazenda-da-tarefa.tsx`) põe isso à vista nas duas telas.
-   **Trocar só no cadastro**: na coleta, mudar de fazenda no meio faria o mesmo
-   brinco resolver para outro animal e o peso já digitado iria para o bicho
-   errado — lá a troca é antes de entrar, pelo seletor em *Mais*.
+   **Trocar funciona nas duas telas**: o técnico passa de um curral para outro
+   e não vai voltar ao menu para isso. O que a troca não pode é levar junto o
+   que já foi digitado — na outra fazenda o mesmo brinco é outro animal —,
+   então com peso, observação ou áudio preenchidos ela pergunta antes e
+   descarta.
 2. **O app deduzia a fazenda do animal que acabara de criar.** `AnimalResponse`
    não devolvia `fazenda_id`, então a cópia local era carimbada com
    `fazendaAtiva()`. A cópia é indexada por `(fazenda, brinco)`: deduzir errado

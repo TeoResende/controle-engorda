@@ -14,15 +14,18 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
-from app.core.deps import AdminDep, SessaoTenantDep
+from app.core.deps import AdminDep, CtxDep, SessaoGlobalDep, SessaoTenantDep
 from app.core.db import visao_global
 from app.core.security import hash_senha
-from app.models import Usuario, UsuarioFazenda
+from app.core.log import registrar_acao
+from app.models import Fazenda, Usuario, UsuarioFazenda
 from app.schemas import (
     MembroAtualizar,
     MembroCriar,
     MembroResponse,
     RedefinirSenhaRequest,
+    VinculoAtualizar,
+    VinculoDoUsuario,
 )
 
 router = APIRouter(prefix="/membros", tags=["membros"])
@@ -239,3 +242,137 @@ async def desativar(
     if vinculo.desativado_em is None:
         vinculo.desativado_em = datetime.now(timezone.utc)
         await session.commit()
+
+
+# --- Uma pessoa, várias fazendas ------------------------------------------
+#
+# As rotas acima são todas da fazenda do token: é assim que um admin administra
+# a equipe *dele*. As de baixo cruzam fazendas de propósito, e por isso usam
+# `SessaoGlobalDep` — a justificativa escrita que a seção 8.8 exige:
+#
+# Um técnico atende várias fazendas do mesmo grupo, e um cliente pode ser dono
+# de mais de uma. Montar isso só com as rotas por tenant obrigava a trocar de
+# fazenda uma por uma e recadastrar a pessoa em cada, com uma senha nova que
+# seria ignorada — trabalhoso o bastante para o operador desistir e criar duas
+# contas para a mesma pessoa, partindo a autoria das pesagens em duas.
+#
+# Só o **admin master** alcança estas rotas. Dizer a um admin da fazenda A que
+# fulano também trabalha na fazenda B vazaria a existência de outro cliente.
+
+
+def _so_master(ctx) -> None:
+    if not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requer admin master: o vínculo com outras fazendas é do dono do sistema",
+        )
+
+
+async def _usuario_alvo(session: AsyncSession, usuario_id: uuid.UUID) -> Usuario:
+    usuario = await session.get(Usuario, usuario_id)
+    if usuario is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado")
+    if usuario.admin_master:
+        # Não é restrição por segurança, é para a tela não mentir: o master
+        # alcança toda fazenda ativa sem vínculo nenhum, então dar ou tirar
+        # vínculo dele não mudaria o acesso em nada.
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Admin master já alcança todas as fazendas, sem vínculo",
+        )
+    return usuario
+
+
+@router.get("/{usuario_id}/fazendas", response_model=list[VinculoDoUsuario])
+async def fazendas_do_usuario(
+    usuario_id: uuid.UUID,
+    ctx: CtxDep,
+    session: SessaoGlobalDep,
+) -> list[VinculoDoUsuario]:
+    """Em que fazendas esta pessoa trabalha, e com que papel."""
+    _so_master(ctx)
+    await _usuario_alvo(session, usuario_id)
+
+    vinculos = await session.scalars(
+        select(UsuarioFazenda)
+        .options(joinedload(UsuarioFazenda.fazenda))
+        .where(UsuarioFazenda.usuario_id == usuario_id)
+    )
+    return [
+        VinculoDoUsuario(
+            fazenda_id=v.fazenda_id,
+            fazenda_nome=v.fazenda.nome,
+            papel=v.papel,
+            ativo=v.ativo,
+        )
+        for v in sorted(vinculos, key=lambda v: v.fazenda.nome)
+    ]
+
+
+@router.put("/{usuario_id}/fazendas/{fazenda_id}", response_model=VinculoDoUsuario)
+async def vincular_a_fazenda(
+    usuario_id: uuid.UUID,
+    fazenda_id: uuid.UUID,
+    dados: VinculoAtualizar,
+    ctx: CtxDep,
+    session: SessaoGlobalDep,
+) -> VinculoDoUsuario:
+    """Dá acesso da pessoa a uma fazenda, ou muda o papel dela ali.
+
+    `PUT` e não `POST` porque a operação é "esta pessoa tem este papel nesta
+    fazenda": repetir a chamada não cria vínculo em dobro, e quem já saiu volta
+    reativando o vínculo antigo — o registro de quando entrou pela primeira vez
+    continua valendo.
+    """
+    _so_master(ctx)
+    await _usuario_alvo(session, usuario_id)
+
+    fazenda = await session.get(Fazenda, fazenda_id)
+    if fazenda is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fazenda não encontrada")
+    if fazenda.desativado_em is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Fazenda desativada. Reative antes de dar acesso a alguém.",
+        )
+
+    vinculo = await _vinculo(session, fazenda_id, usuario_id)
+    if vinculo is None:
+        vinculo = UsuarioFazenda(usuario_id=usuario_id, fazenda_id=fazenda_id, papel=dados.papel)
+        session.add(vinculo)
+    else:
+        vinculo.papel = dados.papel
+        vinculo.desativado_em = None
+    await session.commit()
+
+    registrar_acao(
+        "vinculo_concedido",
+        usuario=str(usuario_id),
+        fazenda=str(fazenda_id),
+        papel=dados.papel.value,
+    )
+    return VinculoDoUsuario(
+        fazenda_id=fazenda_id, fazenda_nome=fazenda.nome, papel=dados.papel, ativo=True
+    )
+
+
+@router.delete("/{usuario_id}/fazendas/{fazenda_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def desvincular_da_fazenda(
+    usuario_id: uuid.UUID,
+    fazenda_id: uuid.UUID,
+    ctx: CtxDep,
+    session: SessaoGlobalDep,
+) -> None:
+    """Tira o acesso da pessoa àquela fazenda — desativando o vínculo, não
+    apagando: as pesagens que ela registrou continuam apontando para ela."""
+    _so_master(ctx)
+    await _usuario_alvo(session, usuario_id)
+
+    vinculo = await _vinculo(session, fazenda_id, usuario_id)
+    if vinculo is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vínculo não encontrado")
+
+    if vinculo.desativado_em is None:
+        vinculo.desativado_em = datetime.now(timezone.utc)
+        await session.commit()
+        registrar_acao("vinculo_removido", usuario=str(usuario_id), fazenda=str(fazenda_id))

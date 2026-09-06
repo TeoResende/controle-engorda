@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { Celula, Linha, Tabela } from "@/components/tabela";
+import { FazendasDoMembro } from "@/components/fazendas-do-membro";
 import { IconeDoSistema } from "@/components/icone-do-sistema";
 import { IdentidadeVisual } from "@/components/identidade-visual";
 import { TrocarSenha } from "@/components/trocar-senha";
@@ -43,6 +44,7 @@ export default function Configuracoes() {
   const [convidando, setConvidando] = useState(false);
   const [editandoFazenda, setEditandoFazenda] = useState(false);
   const [ocupado, setOcupado] = useState(false);
+  const [vendoFazendasDe, setVendoFazendasDe] = useState<{ id: string; nome: string } | null>(null);
 
   const sessao = lerSessao();
   const [meuId, setMeuId] = useState<string | null>(null);
@@ -381,6 +383,17 @@ export default function Configuracoes() {
                             >
                               Nova senha
                             </button>
+                            {/* A mesma pessoa pode atender várias fazendas —
+                                quem monta esse arranjo é o dono do sistema. */}
+                            {sessao?.admin_master && (
+                              <button
+                                disabled={ocupado}
+                                onClick={() => setVendoFazendasDe({ id: m.id, nome: m.nome })}
+                                className="text-sm font-bold text-verde disabled:opacity-40"
+                              >
+                                Fazendas
+                              </button>
+                            )}
                             <button
                               disabled={ocupado}
                               onClick={() =>
@@ -418,6 +431,17 @@ export default function Configuracoes() {
           </>
         )}
       </Cartao>
+
+      {vendoFazendasDe && (
+        <FazendasDoMembro
+          membroId={vendoFazendasDe.id}
+          nome={vendoFazendasDe.nome}
+          aoFechar={() => {
+            setVendoFazendasDe(null);
+            void carregarMembros();
+          }}
+        />
+      )}
     </div>
   );
 }

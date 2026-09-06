@@ -1,5 +1,7 @@
 """Superusuário: enxerga e opera qualquer fazenda, e não é rebaixável."""
 
+from tests.conftest import SENHA
+
 
 async def test_master_ve_todas_as_fazendas_sem_vinculo(client, dados, logar):
     """O master do fixture não tem vínculo com fazenda nenhuma."""
@@ -148,3 +150,125 @@ async def test_desativar_fazenda_inexistente_e_404(client, dados, logar):
         "/fazendas/00000000-0000-0000-0000-000000000000", headers=master
     )
     assert resposta.status_code == 404
+
+
+# --- Uma pessoa em várias fazendas ----------------------------------------
+
+
+async def test_master_poe_o_tecnico_em_outra_fazenda(client, dados, logar):
+    """Um técnico atende várias fazendas do mesmo grupo, e um cliente pode ser
+    dono de mais de uma. Sem isto, montar esse arranjo exigia recadastrar a
+    pessoa fazenda por fazenda — trabalhoso o bastante para alguém desistir e
+    criar duas contas para a mesma pessoa, partindo a autoria das pesagens."""
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    cliente = dados["cliente_a"]
+
+    antes = await client.get(f"/membros/{cliente.id}/fazendas", headers=master)
+    assert [v["fazenda_id"] for v in antes.json()] == [str(dados["fazenda_a"].id)]
+
+    dado = await client.put(
+        f"/membros/{cliente.id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "cliente"},
+        headers=master,
+    )
+    assert dado.status_code == 200
+    assert dado.json()["fazenda_nome"] == dados["fazenda_b"].nome
+
+    # E o login passa a oferecer as duas.
+    entrada = await client.post(
+        "/auth/login", json={"email": cliente.email, "senha": SENHA}
+    )
+    assert entrada.status_code == 409
+    nomes = {f["nome"] for f in entrada.json()["detail"]["fazendas"]}
+    assert nomes == {dados["fazenda_a"].nome, dados["fazenda_b"].nome}
+
+
+async def test_vincular_duas_vezes_nao_duplica_e_troca_o_papel(client, dados, logar):
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    alvo = dados["cliente_a"]
+
+    for papel in ("tecnico", "admin"):
+        resposta = await client.put(
+            f"/membros/{alvo.id}/fazendas/{dados['fazenda_b'].id}",
+            json={"papel": papel},
+            headers=master,
+        )
+        assert resposta.status_code == 200
+
+    vinculos = (await client.get(f"/membros/{alvo.id}/fazendas", headers=master)).json()
+    da_b = [v for v in vinculos if v["fazenda_id"] == str(dados["fazenda_b"].id)]
+    assert len(da_b) == 1
+    assert da_b[0]["papel"] == "admin"
+
+
+async def test_tirar_o_acesso_desativa_o_vinculo_e_o_devolve_intacto(
+    client, dados, logar
+):
+    """Nada é apagado: o vínculo continua consultável, e as pesagens que a
+    pessoa registrou seguem apontando para ela."""
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    alvo = dados["cliente_a"]
+    await client.put(
+        f"/membros/{alvo.id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "tecnico"},
+        headers=master,
+    )
+
+    saiu = await client.delete(
+        f"/membros/{alvo.id}/fazendas/{dados['fazenda_b'].id}", headers=master
+    )
+    assert saiu.status_code == 204
+
+    vinculos = (await client.get(f"/membros/{alvo.id}/fazendas", headers=master)).json()
+    da_b = [v for v in vinculos if v["fazenda_id"] == str(dados["fazenda_b"].id)][0]
+    assert da_b["ativo"] is False
+
+    # Voltar reativa o mesmo vínculo, não cria outro.
+    await client.put(
+        f"/membros/{alvo.id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "tecnico"},
+        headers=master,
+    )
+    vinculos = (await client.get(f"/membros/{alvo.id}/fazendas", headers=master)).json()
+    assert len([v for v in vinculos if v["fazenda_id"] == str(dados["fazenda_b"].id)]) == 1
+
+
+async def test_admin_de_fazenda_nao_ve_nem_mexe_nas_outras_fazendas_de_alguem(
+    client, dados, logar
+):
+    """Dizer ao admin da fazenda A que fulano também trabalha na B vazaria a
+    existência de outro cliente."""
+    admin = await logar(dados["admin_a"], dados["fazenda_a"].id)
+    alvo = dados["cliente_a"]
+
+    assert (await client.get(f"/membros/{alvo.id}/fazendas", headers=admin)).status_code == 403
+    negado = await client.put(
+        f"/membros/{alvo.id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "tecnico"},
+        headers=admin,
+    )
+    assert negado.status_code == 403
+
+
+async def test_vincular_admin_master_nao_faz_sentido(client, dados, logar):
+    """Ele já alcança toda fazenda ativa sem vínculo; deixar a tela oferecer
+    isso faria o operador achar que precisa fazer algo que não muda nada."""
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    resposta = await client.put(
+        f"/membros/{dados['master'].id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "admin"},
+        headers=master,
+    )
+    assert resposta.status_code == 409
+
+
+async def test_nao_da_acesso_a_fazenda_desativada(client, dados, logar):
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    await client.delete(f"/fazendas/{dados['fazenda_b'].id}", headers=master)
+
+    resposta = await client.put(
+        f"/membros/{dados['cliente_a'].id}/fazendas/{dados['fazenda_b'].id}",
+        json={"papel": "tecnico"},
+        headers=master,
+    )
+    assert resposta.status_code == 409

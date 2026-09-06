@@ -145,10 +145,14 @@ function Conteudo() {
       </header>
 
       <form onSubmit={salvar} className="flex flex-1 flex-col gap-5 p-5">
-        {/* Sem troca aqui: mudar de fazenda no meio faria o mesmo brinco
-            resolver para outro animal, e o peso já digitado iria para o bicho
-            errado. A troca é antes de entrar, em *Mais*. */}
-        <FazendaDaTarefa acao="Pesando em" />
+        {/* O técnico passa de um curral para outro sem voltar ao menu. O que a
+            troca não pode é levar junto o peso digitado: na outra fazenda este
+            mesmo brinco é outro animal. */}
+        <FazendaDaTarefa
+          acao="Pesando em"
+          temRascunho={peso.trim() !== "" || observacao.trim() !== "" || audio !== null}
+          aviso="Trocar de fazenda descarta o peso digitado — lá este brinco é outro animal. Continuar?"
+        />
 
         <section className="rounded-2xl bg-verde px-5 py-5">
           <p className="font-titulo text-3xl font-extrabold text-fundo">

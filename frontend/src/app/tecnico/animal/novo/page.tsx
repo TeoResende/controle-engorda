@@ -119,7 +119,11 @@ function Conteudo() {
         {/* De qual fazenda vai ser este animal — decidido antes de salvar, e
             à vista: sem isto, quem atende duas cadastrava na errada em
             silêncio. */}
-        <FazendaDaTarefa acao="Cadastrando em" podeTrocar />
+        <FazendaDaTarefa
+          acao="Cadastrando em"
+          temRascunho={brinco.trim() !== ""}
+          aviso="Trocar de fazenda limpa o cadastro que você começou. Continuar?"
+        />
 
         <div className="flex items-end gap-2">
           <div className="flex-1">

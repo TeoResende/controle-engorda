@@ -31,3 +31,20 @@ class MembroResponse(BaseModel):
     criado_em: datetime
     # Data em que o vínculo com esta fazenda foi desativado.
     desativado_em: datetime | None
+
+
+class VinculoDoUsuario(BaseModel):
+    """Uma fazenda que a pessoa atende, e com que papel.
+
+    Só o admin master enxerga esta lista: dizer a um admin da fazenda A que
+    fulano também trabalha na fazenda B vazaria a existência de outro cliente.
+    """
+
+    fazenda_id: uuid.UUID
+    fazenda_nome: str
+    papel: Papel
+    ativo: bool
+
+
+class VinculoAtualizar(BaseModel):
+    papel: Papel
