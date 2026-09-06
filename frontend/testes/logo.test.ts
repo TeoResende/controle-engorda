@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { db } from "@/lib/db";
-import { logoDaFazenda, logoGuardada } from "@/lib/marca";
+import { esquecerLogo, esquecerMarca, logoDaFazenda, logoGuardada } from "@/lib/marca";
 
 /**
  * Logo da fazenda.
@@ -28,6 +28,10 @@ async function texto(b: Blob | null): Promise<string | null> {
 
 beforeEach(async () => {
   await db.meta.clear();
+  // A logo fica em memória depois da primeira busca — é o que evita uma ida à
+  // rede por navegação. Cada teste começa do zero.
+  esquecerLogo(FAZENDA);
+  esquecerMarca();
   localStorage.setItem(
     "engorda.sessoes",
     JSON.stringify({
@@ -84,6 +88,34 @@ describe("logo da fazenda", () => {
 
     expect(await logoDaFazenda(FAZENDA)).toBeNull();
     expect(await logoGuardada(FAZENDA)).toBeNull();
+  });
+
+  it("busca uma vez por sessão: navegar entre telas não refaz a chamada", async () => {
+    let idas = 0;
+    vi.stubGlobal("fetch", async () => {
+      idas += 1;
+      return new Response(blob("imagem"), { status: 200 });
+    });
+
+    await logoDaFazenda(FAZENDA);
+    await logoDaFazenda(FAZENDA);
+    await logoDaFazenda(FAZENDA);
+
+    expect(idas).toBe(1);
+  });
+
+  it("esquecer força a próxima busca — é o que a tela de marca usa ao salvar", async () => {
+    let idas = 0;
+    vi.stubGlobal("fetch", async () => {
+      idas += 1;
+      return new Response(blob("imagem"), { status: 200 });
+    });
+
+    await logoDaFazenda(FAZENDA);
+    esquecerLogo(FAZENDA);
+    await logoDaFazenda(FAZENDA);
+
+    expect(idas).toBe(2);
   });
 
   it("é guardada por fazenda — quem atende duas troca sem internet", async () => {

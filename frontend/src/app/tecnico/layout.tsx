@@ -26,6 +26,9 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
   const [pronto, setPronto] = useState(false);
   const [semPermissao, setSemPermissao] = useState(false);
   const [identidade, setIdentidade] = useState<Identidade | null>(null);
+  // Muda no login e na troca de fazenda — que é quando o rebanho precisa mesmo
+  // ser rebaixado.
+  const fazenda = lerSessao()?.fazenda_id ?? null;
 
   // Service Worker: é o que faz o app ABRIR sem sinal. Escopo na raiz, mas só
   // serve /tecnico do cache — o dashboard do cliente passa direto para a rede.
@@ -33,6 +36,8 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
     void registrarWorker();
   }, []);
 
+  // A guarda roda a cada tela: é ela que impede um caminho direto de furar o
+  // login ou o papel.
   useEffect(() => {
     if (PUBLICAS.includes(caminho)) {
       setPronto(true);
@@ -54,11 +59,25 @@ export default function LayoutTecnico({ children }: { children: React.ReactNode 
     }
 
     setPronto(true);
-    // Mostra o que está guardado na hora e atualiza em segundo plano.
+  }, [caminho, router]);
+
+  // **O trabalho pesado é por sessão, não por tela.** Isto aqui estava no mesmo
+  // efeito da guarda, com `caminho` na lista de dependências: cada toque numa
+  // aba disparava `sincronizarTudo()`, que baixa as sessões e **o rebanho
+  // inteiro de todas as fazendas**, reescrevendo o IndexedDB. No celular, em
+  // sinal de fazenda, isso competia com a própria tela que a pessoa estava
+  // tentando abrir — a navegação ficava lenta por causa de um trabalho que não
+  // tinha nada a ver com ela.
+  //
+  // A fila continua subindo sozinha: no evento `online` e depois de cada peso
+  // salvo (`components/barra-tecnico.tsx`, tela de coleta).
+  useEffect(() => {
+    if (!fazenda) return;
+    // O guardado pinta na hora; a rede confirma depois.
     void identidadeGuardada().then((i) => i && setIdentidade(i));
     void baixarIdentidade().then((i) => i && setIdentidade(i));
     void sincronizarTudo();
-  }, [caminho, router]);
+  }, [fazenda]);
 
   if (!pronto) return null;
 

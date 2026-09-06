@@ -13,7 +13,7 @@
  * é pior que erro de rede.
  */
 
-const VERSAO = "v4";
+const VERSAO = "v5";
 const CACHE_SHELL = `engorda-shell-${VERSAO}`;
 
 // Rotas do app que precisam abrir sem rede.
@@ -129,16 +129,41 @@ self.addEventListener("fetch", (evento) => {
   // dashboard, acima de tudo — passa direto para a rede.
   const doTecnico = url.pathname === "/" || url.pathname.startsWith("/tecnico");
 
-  // Navegação: tenta a rede, cai no cache. Assim o app abre offline, e online
-  // continua pegando a versão nova sem esperar o SW atualizar.
+  // Navegação: **cache primeiro, rede em segundo plano.**
+  //
+  // Era o contrário — rede primeiro, cache como queda — e isso custava caro
+  // justamente onde o app precisa ser bom. Offline até funcionava (o `fetch`
+  // falha rápido), mas no curral o normal não é estar sem sinal: é estar com
+  // sinal ruim. Aí cada troca de tela ficava esperando uma resposta que
+  // demorava segundos, com uma cópia perfeita da tela parada no cache ao lado.
+  //
+  // Agora a tela abre na hora e a versão nova é buscada em paralelo, para a
+  // navegação seguinte. O preço é ver o shell da versão anterior por uma
+  // navegação depois de um deploy — barato perto de esperar a rede a cada
+  // toque, e o `install` do SW novo já reaquece tudo.
   if (requisicao.mode === "navigate" && doTecnico) {
     evento.respondWith(
       (async () => {
         const cache = await caches.open(CACHE_SHELL);
+        const guardada = await cache.match(url.pathname);
+
+        const daRede = fetch(requisicao)
+          .then((resposta) => {
+            if (resposta.ok) cache.put(url.pathname, resposta.clone());
+            return resposta;
+          })
+          .catch(() => null);
+
+        if (guardada) {
+          // Não bloqueia a resposta: a atualização segue depois de entregar.
+          evento.waitUntil(daRede);
+          return guardada;
+        }
+
         try {
-          const resposta = await fetch(requisicao);
-          cache.put(url.pathname, resposta.clone());
-          return resposta;
+          const resposta = await daRede;
+          if (resposta) return resposta;
+          throw new Error("sem rede");
         } catch {
           return (
             (await cache.match(url.pathname)) ??

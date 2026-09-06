@@ -1192,6 +1192,53 @@ cair no meio de um dia de campo:
 docker compose exec worker python -m app.transcricao
 ```
 
+### Trocar de tela: onde estava a lentidão (medido)
+
+A queixa era "muito lento para ir de uma tela para outra", no dashboard e na
+coleta. **A API não era o problema** — 4 a 46 ms por rota — e o frontend já
+rodava em produção, com 105 kB de bundle compartilhado. O custo estava em
+trabalho disparado *pela navegação*, medido com CPU 4× mais lenta e 150 ms de
+latência (perfil de celular em fazenda):
+
+| Causa | Onde | Efeito |
+|---|---|---|
+| `sincronizarTudo()` no efeito da guarda, com `caminho` nas dependências | `app/tecnico/layout.tsx` | **cada toque numa aba** baixava sessões e o **rebanho inteiro de todas as fazendas**, reescrevendo o IndexedDB |
+| Cabeçalho de impressão remontando | `components/impressao.tsx` | 2 idas à rede (marca + logo) por navegação, para desenhar algo que só aparece no papel |
+| Navegação do SW era network-first | `public/sw.js` | com sinal ruim, cada tela esperava segundos por uma resposta tendo a cópia pronta no cache |
+
+As três correções, e por quê:
+
+1. **O trabalho pesado passou a ser por sessão, não por tela**: o efeito depende
+   da fazenda ativa (muda no login e na troca de fazenda), não do caminho. A
+   fila continua subindo sozinha no evento `online` e depois de cada peso
+   salvo — e o `online` agora chama `sincronizarTudo()`, aproveitando a janela
+   de rede para atualizar o rebanho.
+2. **Marca e logo ficam em memória** depois da primeira busca
+   (`esquecerMarca()` / `esquecerLogo()` invalidam ao salvar). Sem isso, cada
+   navegação refazia as duas chamadas.
+3. **O SW responde do cache e revalida em segundo plano.** Offline já
+   funcionava (o `fetch` falha rápido); quem sofria era o sinal *ruim*, que é o
+   normal no curral. O preço é ver a casca da versão anterior por uma navegação
+   depois de um deploy.
+
+Medido, mesmo perfil de celular:
+
+| | Antes | Depois |
+|---|---|---|
+| Dashboard: visão geral → animais | 351 ms, 8 requisições | **125 ms, 1 requisição** |
+| Dashboard: animais → observações | 126 ms, 4 requisições | **83 ms, 1 requisição** |
+| Técnico: trocar de aba | sessões + rebanho de cada fazenda | **0 chamadas de API** |
+
+**Ao mexer em layout de área (`app/*/layout.tsx`), olhe a lista de dependências
+do efeito.** Um `caminho` a mais ali transforma trabalho de sessão em trabalho
+de navegação, e o sintoma — "o app está lento" — não aponta para a causa.
+
+O `sw.js` passou a ter teste (`frontend/testes/sw.test.ts`): ele é carregado num
+sandbox com `caches` e `fetch` de mentira, e o que se verifica é a política —
+responde do cache na hora, revalida em segundo plano, cai na casca do app sem
+rede, e nunca serve dashboard nem `/api` do cache. Ele já causou três defeitos
+silenciosos e nenhum apareceu em teste porque não havia teste.
+
 **A imagem da API não carrega as bibliotecas de transcrição.** São ~350 MB de
 `ctranslate2`, `onnxruntime` e `av` que só o worker executa — a API apenas
 enfileira o job. O `Dockerfile` recebe `PERFIL` (`api`, `worker` ou `dev`), e o

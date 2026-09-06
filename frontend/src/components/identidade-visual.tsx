@@ -5,7 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { LogoFazenda } from "@/components/logo-fazenda";
 import { Aviso, Cartao } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
-import { aplicarMarca, baixarMarca, canaisParaHex, type Marca } from "@/lib/marca";
+import {
+  aplicarMarca,
+  baixarMarca,
+  canaisParaHex,
+  esquecerLogo,
+  esquecerMarca,
+  type Marca,
+} from "@/lib/marca";
 import { lerSessao } from "@/lib/sessao";
 
 /** Os mesmos valores de `globals.css`, para o botão "voltar ao padrão". */
@@ -61,6 +68,10 @@ export function IdentidadeVisual() {
     setOcupado(true);
     try {
       await acao();
+      // A marca e a logo ficam em memória para não serem rebuscadas a cada
+      // navegação; depois de salvar, o que está guardado é justamente o antigo.
+      esquecerMarca();
+      if (sessao?.fazenda_id) esquecerLogo(sessao.fazenda_id);
       const atualizada = await baixarMarca();
       if (atualizada) aplicarMarca(atualizada);
       setFazenda(await apiAuth<Fazenda>("/fazendas/atual"));

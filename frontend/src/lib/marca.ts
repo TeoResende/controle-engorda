@@ -89,7 +89,34 @@ export async function marcaGuardada(): Promise<Marca | undefined> {
   return lerMeta<Marca>(CHAVE);
 }
 
+/**
+ * Marca e logo ficam **em memória** depois da primeira busca.
+ *
+ * Não é micro-otimização: o cabeçalho de impressão vive em quatro telas do
+ * dashboard e, a cada navegação, remontava e refazia as duas chamadas — duas
+ * idas à rede por troca de tela para desenhar algo que só aparece no papel.
+ * Medido no perfil de celular, era metade das requisições de cada navegação.
+ *
+ * Quem muda a marca chama `esquecerMarca()` / `esquecerLogo()` — senão a tela
+ * de identidade visual mostraria o valor antigo depois de salvar.
+ */
+let marcaEmMemoria: Promise<Marca | undefined> | null = null;
+const logosEmMemoria = new Map<string, Promise<Blob | null>>();
+
+export function esquecerMarca(): void {
+  marcaEmMemoria = null;
+}
+
+export function esquecerLogo(fazenda_id: string): void {
+  logosEmMemoria.delete(fazenda_id);
+}
+
 export async function baixarMarca(): Promise<Marca | undefined> {
+  marcaEmMemoria ??= _baixarMarca();
+  return marcaEmMemoria;
+}
+
+async function _baixarMarca(): Promise<Marca | undefined> {
   try {
     const fazenda = await apiAuth<Marca>("/fazendas/atual");
     const marca: Marca = {
@@ -126,6 +153,15 @@ export async function baixarMarca(): Promise<Marca | undefined> {
  * (seção 8.14), e uma chave única mostraria a logo da fazenda errada.
  */
 export async function logoDaFazenda(fazenda_id: string): Promise<Blob | null> {
+  let busca = logosEmMemoria.get(fazenda_id);
+  if (!busca) {
+    busca = _logoDaFazenda(fazenda_id);
+    logosEmMemoria.set(fazenda_id, busca);
+  }
+  return busca;
+}
+
+async function _logoDaFazenda(fazenda_id: string): Promise<Blob | null> {
   const chave = `logo:${fazenda_id}`;
   const guardada = await lerMeta<Blob>(chave);
 

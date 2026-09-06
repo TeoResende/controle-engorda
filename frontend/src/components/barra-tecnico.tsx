@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { Casa, Brinco, Pessoa, Reticencias, SemSinal } from "@/components/icones";
 import { LogoFazenda } from "@/components/logo-fazenda";
 import { contarFila } from "@/lib/pesados-hoje";
-import { sincronizar } from "@/lib/sync";
+import { sincronizarTudo } from "@/lib/sync";
 
 /**
  * Barra superior: fazenda e estado da conexão.
@@ -24,7 +24,10 @@ export function BarraSuperior({ fazenda }: { fazenda: string }) {
     atualizar();
     const aoVoltar = () => {
       setOnline(true);
-      void sincronizar(); // voltou o sinal: sobe a fila sem o técnico pedir
+      // Voltou o sinal: sobe a fila e reaproveita a janela de rede para
+      // atualizar o rebanho — é o único momento em que isso é oportuno, já que
+      // deixou de acontecer a cada troca de tela.
+      void sincronizarTudo();
     };
     window.addEventListener("online", aoVoltar);
     window.addEventListener("offline", atualizar);
