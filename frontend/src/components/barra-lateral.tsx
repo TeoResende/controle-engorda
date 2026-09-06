@@ -4,12 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { Balao, Caixa, Engrenagem, Grade, Pessoa } from "@/components/icones";
+import { Balao, Caixa, Engrenagem, Galpao, Grade, Pessoa } from "@/components/icones";
 import { LogoFazenda } from "@/components/logo-fazenda";
 import { apiAuth } from "@/lib/api";
 import { baixarMarca, marcaGuardada } from "@/lib/marca";
 import { iniciais } from "@/lib/formato";
-import { limparSessao, salvarSessao, type Sessao } from "@/lib/sessao";
+import { lerSessao, limparSessao, salvarSessao, type Sessao } from "@/lib/sessao";
 import { ROTULO_PAPEL } from "@/lib/sessao-usuario";
 
 type Eu = {
@@ -19,12 +19,14 @@ type Eu = {
   fazendas: { fazenda_id: string; nome: string }[];
 };
 
+/** `master` marca o que só o dono do SaaS enxerga. */
 const ITENS = [
   { href: "/dashboard", rotulo: "Visão geral", Icone: Grade },
   { href: "/dashboard/animais", rotulo: "Animais", Icone: Pessoa },
   { href: "/dashboard/lotes", rotulo: "Lotes", Icone: Caixa },
   { href: "/dashboard/observacoes", rotulo: "Observações", Icone: Balao },
   { href: "/dashboard/configuracoes", rotulo: "Configurações", Icone: Engrenagem },
+  { href: "/dashboard/fazendas", rotulo: "Fazendas", Icone: Galpao, master: true },
 ];
 
 /**
@@ -45,6 +47,7 @@ export function BarraLateral({
   const caminho = usePathname();
   const router = useRouter();
   const [eu, setEu] = useState<Eu | null>(null);
+  const sessao = lerSessao();
   const [trocando, setTrocando] = useState(false);
 
   useEffect(() => {
@@ -129,7 +132,7 @@ export function BarraLateral({
           )}
 
           <nav className="mt-6 flex flex-col gap-1">
-            {ITENS.map(({ href, rotulo, Icone }) => {
+            {ITENS.filter((i) => !i.master || sessao?.admin_master).map(({ href, rotulo, Icone }) => {
               const ativo = href === "/dashboard" ? caminho === href : caminho.startsWith(href);
               return (
                 <Link

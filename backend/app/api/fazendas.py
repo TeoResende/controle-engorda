@@ -184,6 +184,31 @@ async def desativar_atual(ctx: CtxDep, session: SessaoGlobalDep) -> None:
         await session.commit()
 
 
+@router.delete("/{fazenda_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def desativar(
+    fazenda_id: uuid.UUID,
+    ctx: CtxDep,
+    session: SessaoGlobalDep,
+) -> None:
+    """Desativa uma fazenda pelo id, sem precisar estar dentro dela.
+
+    `DELETE /atual` obrigava a trocar de token antes — e trocar para uma fazenda
+    só para desligá-la é um passo que não faz sentido na tela de gestão, onde
+    todas estão listadas lado a lado. Simétrico do `POST /{id}/reativar`, que já
+    era por id.
+    """
+    if not ctx.master:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Requer admin master"
+        )
+    fazenda = await session.get(Fazenda, fazenda_id)
+    if fazenda is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fazenda não encontrada")
+    if fazenda.desativado_em is None:
+        fazenda.desativado_em = datetime.now(timezone.utc)
+        await session.commit()
+
+
 @router.post("/{fazenda_id}/reativar", response_model=FazendaResponse)
 async def reativar(
     fazenda_id: uuid.UUID,

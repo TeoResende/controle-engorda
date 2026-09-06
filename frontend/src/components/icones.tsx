@@ -101,3 +101,12 @@ export const Balao = ({ className = base }: Props) => (
     <path d="M21 12a8 8 0 0 1-8 8H7l-4 3v-4.6A8 8 0 0 1 11 4h2a8 8 0 0 1 8 8Z" />
   </svg>
 );
+
+/** Galpão: a fazenda como registro no sistema, não o pasto. */
+export const Galpao = ({ className = base }: Props) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M3 10 12 4l9 6" />
+    <path d="M5 10v10h14V10" />
+    <path d="M10 20v-5h4v5" />
+  </svg>
+);

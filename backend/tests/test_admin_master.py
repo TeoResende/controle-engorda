@@ -114,3 +114,37 @@ async def test_master_desativa_e_reativa_fazenda(client, dados, logar):
 async def test_admin_comum_nao_desativa_a_propria_fazenda(client, dados, logar):
     admin = await logar(dados["admin_a"])
     assert (await client.delete("/fazendas/atual", headers=admin)).status_code == 403
+
+
+async def test_master_desativa_e_reativa_fazenda_por_id(client, dados, logar):
+    """Sem a rota por id, desligar uma fazenda exigia trocar de token para
+    entrar nela primeiro — passo sem sentido numa tela que lista todas."""
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    outra = str(dados["fazenda_b"].id)
+
+    desativada = await client.delete(f"/fazendas/{outra}", headers=master)
+    assert desativada.status_code == 204
+
+    ativas = await client.get("/fazendas", headers=master)
+    assert outra not in [f["id"] for f in ativas.json()]
+
+    todas = await client.get("/fazendas?incluir_inativas=true", headers=master)
+    assert outra in [f["id"] for f in todas.json()]
+
+    reativada = await client.post(f"/fazendas/{outra}/reativar", headers=master)
+    assert reativada.status_code == 200
+    assert reativada.json()["desativado_em"] is None
+
+
+async def test_admin_de_fazenda_nao_desativa_outra(client, dados, logar):
+    admin = await logar(dados["admin_a"], dados["fazenda_a"].id)
+    resposta = await client.delete(f"/fazendas/{dados['fazenda_b'].id}", headers=admin)
+    assert resposta.status_code == 403
+
+
+async def test_desativar_fazenda_inexistente_e_404(client, dados, logar):
+    master = await logar(dados["master"], dados["fazenda_a"].id)
+    resposta = await client.delete(
+        "/fazendas/00000000-0000-0000-0000-000000000000", headers=master
+    )
+    assert resposta.status_code == 404

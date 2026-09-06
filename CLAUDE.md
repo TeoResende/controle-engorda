@@ -245,6 +245,27 @@ endpoints **desativa**; existe `POST .../reativar` para desfazer.
 adiciona pessoa, troca o papel, remove e reativa. Cliente e técnico recebem 403
 e um aviso explicando de quem é a área.
 
+### Onde se cadastram as fazendas
+
+`/dashboard/fazendas`, **só admin master** — o item nem aparece no menu para os
+outros. A primeira fazenda nasce no primeiro acesso, junto com o admin master;
+daí em diante, cliente novo é fazenda nova, e é essa a tela.
+
+A API já permitia (`POST /fazendas`) desde o M3, mas **não havia tela**: quem
+instalava o sistema ficava preso à fazenda inicial sem nenhuma pista de como
+criar a segunda. Funcionalidade que só existe no Swagger não existe.
+
+- **Entrar numa fazenda é trocar de token** (`POST /auth/trocar-fazenda`), o
+  mesmo caminho do seletor da barra lateral — o `fazenda_id` viaja assinado
+  dentro do token e nenhum endpoint de dados aceita a fazenda vinda do cliente.
+- **Desativar pede confirmação** e não apaga nada: tira a fazenda de circulação
+  e bloqueia o login nela, mas animais, pesagens e histórico continuam no banco
+  e voltam inteiros com `POST /fazendas/{id}/reativar`.
+- `DELETE /fazendas/{id}` foi acrescentado ao lado do `DELETE /fazendas/atual`
+  que já existia: desligar uma fazenda a partir de uma lista onde todas
+  aparecem não pode exigir trocar de token para entrar nela antes. Simétrico do
+  reativar, que já era por id.
+
 **Cliente não entra em `/tecnico`.** Ele é somente leitura e o servidor recusaria
 a pesagem com 403 — deixá-lo coletar guardaria no aparelho um peso que nunca
 poderia subir, falha que parece ter dado certo e só quebra depois, dentro da
