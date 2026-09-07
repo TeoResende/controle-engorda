@@ -72,10 +72,16 @@ class Settings(BaseSettings):
     # --- Transcrição de áudio (M7) ---
     # API externa primeiro; sem chave ou em caso de falha, cai para o Whisper
     # local. A URL segue o formato da API de transcrição da OpenAI, que virou
-    # padrão de fato — outros provedores a implementam.
-    transcricao_api_url: str = "https://api.openai.com/v1/audio/transcriptions"
+    # padrão de fato — a Groq (nosso motor) o implementa igual, então trocar de
+    # provedor é trocar URL + modelo, não código.
+    #
+    # Motor externo padrão: Groq, `whisper-large-v3-turbo` — bem melhor que o
+    # `whisper-1` da OpenAI no áudio ruidoso de curral, rápido e barato, e
+    # mantém o `prompt` de vocabulário (`CONTEXTO`) e `language=pt`. Basta pôr a
+    # chave no `.env`; sem ela, tudo cai para o Whisper local (nada sai da VPS).
+    transcricao_api_url: str = "https://api.groq.com/openai/v1/audio/transcriptions"
     transcricao_api_chave: str = ""
-    transcricao_api_modelo: str = "whisper-1"
+    transcricao_api_modelo: str = "whisper-large-v3-turbo"
     transcricao_timeout_s: int = 60
     # Modelo local do faster-whisper. "small" equilibra qualidade e CPU de VPS;
     # "tiny" cabe em máquina apertada, "medium" pede bem mais memória.

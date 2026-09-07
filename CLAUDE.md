@@ -719,7 +719,28 @@ demais faz o modelo repetir o próprio vocabulário no lugar do áudio.
 **API externa primeiro, Whisper local como queda.** A externa é rápida e não
   gasta CPU do servidor, mas depende de rede e de crédito; o local não depende
   de nada além da máquina, e é isso que faz dele um fallback de verdade. Sem
-  `TRANSCRICAO_API_CHAVE`, vai direto para o local.
+  `TRANSCRICAO_API_CHAVE`, vai direto para o local — e aí **nada de áudio sai da
+  VPS**.
+  - **Motor externo: Groq, `whisper-large-v3-turbo`** (padrão no código). Bem
+    superior ao `whisper-1` no áudio ruidoso de curral, rápido e barato. A API
+    da Groq é compatível com OpenAI, então a única diferença para outro provedor
+    é URL + modelo — o `prompt` (`CONTEXTO`) e `language=pt` continuam iguais.
+  - **Trocar de provedor é `.env`, não código** — mas as três variáveis andam
+    juntas. Um `.env` antigo com `TRANSCRICAO_API_URL` da OpenAI explícito
+    **sobrepõe** o padrão novo: pôr só a chave mandaria a credencial da Groq para
+    o endpoint da OpenAI. Ao ativar, defina as três:
+    `TRANSCRICAO_API_URL=https://api.groq.com/openai/v1/audio/transcriptions`,
+    `TRANSCRICAO_API_CHAVE=<chave>`, `TRANSCRICAO_API_MODELO=whisper-large-v3-turbo`.
+  - **Confira antes de confiar:** `docker compose exec worker python -m
+    app.transcricao --conferir` faz uma chamada real e diz se a Groq respondeu.
+    Rode depois de pôr a chave — com o serviço fora do ar, o sintoma seria só
+    lentidão, sem apontar a causa.
+  - **Disparo é por evento, não cron.** Cada áudio enfileira seu job no upload
+    (`arq`); não há janela de tempo nem lote — todo áudio é transcrito, novo ou
+    atrasado. (Um sistema irmão usa cron com janela de 2 dias e teto por rodada,
+    freio para Whisper local em 1 vCPU; aqui o trabalho pesado sai da máquina, o
+    freio não se aplica, e copiá-lo reabriria o buraco de "áudio velho nunca
+    transcrito".)
 - **Transcrição não apaga o que o técnico digitou.** Digitou *e* gravou? Os dois
   entram em `observacao_texto`, o falado marcado com `(áudio)`.
 - **Falha preserva o áudio.** Status vira `falhou`, o objeto continua no MinIO, e
