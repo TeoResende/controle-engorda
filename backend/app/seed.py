@@ -3,7 +3,15 @@
 Duas fazendas de propósito: o isolamento multi-tenant (M2) só é testável de
 verdade se existir dado de outro tenant para vazar.
 
-Uso: docker compose exec backend python -m app.seed [--reset]
+Uso:
+  docker compose exec backend python -m app.seed            # cria, se vazio
+  docker compose exec backend python -m app.seed --reset    # recria dados de EXEMPLO
+  docker compose exec backend python -m app.seed --zerar    # esvazia SEM recriar
+
+**Cuidado: `--reset` e `--zerar` apagam dados de verdade.** Em produção,
+`--reset` é pior que inútil — recria um admin master com a senha pública
+`engorda123`. Para começar limpo com o seu próprio admin, use `--zerar`, que
+deixa a base vazia para o primeiro acesso criar o admin master real.
 """
 
 import asyncio
@@ -13,7 +21,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.config import settings
@@ -60,6 +68,38 @@ async def limpar(session) -> None:
     await session.commit()
 
 
+async def _zerar(session) -> bool:
+    """Esvazia a base de negócio **sem recriar nada**.
+
+    É o que prepara um começo limpo de verdade: com a base vazia, o `/setup`
+    reabre e o primeiro acesso cria o **seu** admin master — em vez do
+    `master@teste.com` de senha pública que o `--reset` recriaria.
+
+    Destrutivo e sem volta, então exige `--confirmar` num segundo passo: rodar só
+    `--zerar` mostra o que seria apagado e para. Devolve `True` quando apagou.
+    """
+    contagem = {
+        "fazendas": await session.scalar(select(func.count()).select_from(Fazenda)),
+        "usuarios": await session.scalar(select(func.count()).select_from(Usuario)),
+        "animais": await session.scalar(select(func.count()).select_from(Animal)),
+        "pesagens": await session.scalar(select(func.count()).select_from(Pesagem)),
+        "lotes": await session.scalar(select(func.count()).select_from(Lote)),
+    }
+    resumo = ", ".join(f"{k}={v}" for k, v in contagem.items())
+
+    if "--confirmar" not in sys.argv:
+        print("ATENÇÃO: --zerar apaga DEFINITIVAMENTE toda a base de negócio.")
+        print(f"  Hoje há: {resumo}")
+        print("  Nada é recriado: o próximo acesso cai no cadastro do primeiro admin master.")
+        print("  O ícone do sistema e os arquivos no MinIO não são tocados.")
+        print("  Para confirmar, rode de novo:  python -m app.seed --zerar --confirmar")
+        return False
+
+    await limpar(session)
+    print(f"Base zerada ({resumo} → apagado). Abra o app: ele levará ao primeiro acesso.")
+    return True
+
+
 def _curva_de_peso(peso_inicial: float, gmd: float, dias: int) -> float:
     """Peso após `dias` com ganho médio diário `gmd`, mais ruído de balança."""
     return round(peso_inicial + gmd * dias + random.uniform(-3.5, 3.5), 1)
@@ -75,6 +115,12 @@ async def semear() -> None:
     fabrica = async_sessionmaker(engine, expire_on_commit=False)
 
     async with fabrica() as session:
+        # Zerar é um caminho próprio: esvazia e para, sem nunca recriar exemplo.
+        if "--zerar" in sys.argv:
+            await _zerar(session)
+            await engine.dispose()
+            return
+
         if "--reset" in sys.argv:
             await limpar(session)
 

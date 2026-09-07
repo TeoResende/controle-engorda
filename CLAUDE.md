@@ -1531,6 +1531,26 @@ docker compose up -d --build
 docker compose exec backend python -m app.seed          # opcional; --reset recria
 ```
 
+**Três modos do seed, e um deles é uma bomba em produção:**
+
+- `python -m app.seed` — cria os dados de exemplo **se o banco estiver vazio**.
+- `python -m app.seed --reset` — apaga tudo e **recria os dados de exemplo**,
+  inclusive `master@teste.com` com a senha **pública** `engorda123`. **Nunca em
+  produção** — seria dar admin master de senha conhecida a quem lê o repositório.
+- `python -m app.seed --zerar` — esvazia a base de negócio e **para**, sem
+  recriar nada. É o caminho para começar limpo em produção: com a base vazia, o
+  primeiro acesso cria o **seu** admin master. Destrutivo, então exige confirmar
+  em dois passos (`--zerar` mostra o que apagaria; `--zerar --confirmar` apaga).
+  Não toca no ícone do sistema nem nos arquivos do MinIO.
+
+Ao zerar em produção, feche o `/setup/primeiro-acesso` logo em seguida criando
+sua conta: enquanto a base está vazia, **quem chegar primeiro na URL vira o admin
+master**. Zere e cadastre em sequência, de preferência com o site fora do ar
+público por esses segundos.
+
+```bash
+```
+
 **As migrations rodam na subida do container** (`backend/entrada.sh` →
 `app/migrar.py`). Sem isso, instalar em outro servidor exigia um comando que,
 esquecido, deixava `/setup/status` respondendo 500 — o produto parecia quebrado
