@@ -274,3 +274,29 @@ async def test_gmd_continua_medido_entre_pesagens(client, session, dados, logar)
     assert Decimal(detalhe["peso_inicial"]) == Decimal("100")
     assert Decimal(detalhe["ganho_total"]) == Decimal("30")
     assert detalhe["dias_acompanhado"] == 30
+
+
+async def test_serie_usa_o_ultimo_peso_do_mes_nao_a_media_das_repesagens(
+    client, session, dados, logar
+):
+    """A curva da visão geral mostrava queda irreal quando um animal era pesado
+    mais de uma vez no mês: a média sobre todas as pesagens contava a correção
+    como um segundo animal. Deve usar um peso por animal por mês — o último."""
+    a = Animal(fazenda_id=dados["fazenda_a"].id, brinco="7100")
+    b = Animal(fazenda_id=dados["fazenda_a"].id, brinco="7101")
+    session.add_all([a, b])
+    await session.commit()
+
+    # No mesmo mês: 'a' foi pesado três vezes (uma correção grosseira no meio),
+    # 'b' uma vez. A média correta é (último de a=300 + b=200)/2 = 250.
+    await _pesar(session, a, 5, "290.00", hora=8)
+    await _pesar(session, a, 5, "30.00", hora=9)   # correção errada, no mesmo dia
+    await _pesar(session, a, 3, "300.00", hora=8)  # última, vale esta
+    await _pesar(session, b, 4, "200.00")
+
+    h = await logar(dados["cliente_a"])
+    serie = (await client.get("/metricas/visao-geral?meses=3", headers=h)).json()["serie"]
+
+    ponto = serie[-1]
+    assert ponto["animais"] == 2                     # dois animais, não quatro pesagens
+    assert Decimal(ponto["peso_medio"]) == Decimal("250.00")  # (300+200)/2, não a média das 4

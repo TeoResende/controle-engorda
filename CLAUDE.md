@@ -842,6 +842,13 @@ complexidade sem ganho.
   números diferentes a cada carga. Isso apareceu na conferência contra o SQL
   bruto: 294,02 kg contra 297,94 kg.
 - **Pesagem ou animal desativado sai de tudo** — média, GMD e alertas.
+- **A curva da visão geral usa um peso por animal por mês — o último**, não a
+  média de todas as pesagens do mês (`_serie`). Com a média crua, um animal
+  pesado duas vezes no mês (repesagem, correção, duas passagens) entrava duas
+  vezes e distorcia a curva: uma correção para baixo fazia o rebanho "emagrecer"
+  num mês em que ele só ganhou peso. O sintoma era uma queda irreal no gráfico —
+  e o ponto do mês corrente divergindo do KPI "peso médio atual", que sempre usou
+  o último peso. Mesmo desempate do resto (`data`, `coletado_em`, `id`).
 
 ### O peso ao nascer entra na curva
 

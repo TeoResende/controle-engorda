@@ -183,20 +183,35 @@ def _arredondar(valor, casas: int = 2) -> Decimal | None:
 
 
 async def _serie(sessao: AsyncSession, fazenda_id: uuid.UUID, meses: int) -> list[PontoDaSerie]:
-    """Peso médio do rebanho por mês — a curva que o cliente vê primeiro."""
+    """Peso médio do rebanho por mês — a curva que o cliente vê primeiro.
+
+    **Um peso por animal por mês: o último.** Antes a média era sobre *todas* as
+    pesagens do mês, então um animal pesado mais de uma vez (repesagem, correção,
+    duas passagens pelo curral) entrava mais de uma vez e distorcia a curva: uma
+    correção para baixo fazia o rebanho inteiro "emagrecer" no mês. Foi o que
+    apareceu como queda irreal na visão geral. O desempate é o mesmo do resto do
+    sistema (`data`, `coletado_em`, `id`), para a curva bater com o "peso atual".
+    """
     corte = date.today() - timedelta(days=31 * meses)
     p = _base_pesagens(fazenda_id).subquery()
-    mes = func.date_trunc("month", p.c.data)
+    mes = cast(func.date_trunc("month", p.c.data), Date)
+
+    ultima_no_mes = (
+        select(mes.label("mes"), p.c.animal_id.label("animal_id"), p.c.peso_kg.label("peso_kg"))
+        .where(p.c.data >= corte)
+        .distinct(mes, p.c.animal_id)
+        .order_by(mes, p.c.animal_id, p.c.data.desc(), p.c.coletado_em.desc(), p.c.id.desc())
+        .subquery()
+    )
 
     linhas = await sessao.execute(
         select(
-            cast(mes, Date).label("mes"),
-            func.avg(p.c.peso_kg),
-            func.count(func.distinct(p.c.animal_id)),
+            ultima_no_mes.c.mes,
+            func.avg(ultima_no_mes.c.peso_kg),
+            func.count(),
         )
-        .where(p.c.data >= corte)
-        .group_by(mes)
-        .order_by(mes)
+        .group_by(ultima_no_mes.c.mes)
+        .order_by(ultima_no_mes.c.mes)
     )
     return [
         PontoDaSerie(data=linha[0], peso_medio=_arredondar(linha[1]), animais=linha[2])
