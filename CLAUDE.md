@@ -1404,6 +1404,28 @@ do que já estava no aparelho):
 O seletor fica em *Mais*, e a barra superior leva até ele. Com uma fazenda só,
 não aparece.
 
+### Rebanho fantasma — quando o servidor muda por baixo
+
+Zerar o banco no servidor (ou perder acesso a uma fazenda) não toca no
+IndexedDB do aparelho: a cópia local do rebanho continua lá, mostrando animais
+que já não existem — e uma pesagem coletada sobre eles nunca sincronizaria.
+
+Duas defesas, ambas com a **fila intocada** (pesagem não enviada é dado, não
+cache — some só quando o servidor confirma):
+
+- **`limparFazendasFantasma()`** roda a cada `sincronizarTudo`, depois de baixar
+  as sessões: apaga do `animais` local toda fazenda que não está mais entre as
+  sessões válidas. O animal fantasma some sozinho no próximo sync com sinal. Sem
+  sessão conhecida não apaga nada (não dá para saber o que é fantasma).
+- **O "Sair" usa `limparCacheLocal()`** — limpa rebanho e identidade, preserva a
+  fila —, e **avisa antes** se houver pesagem não enviada: ela continua no
+  aparelho, mas só sobe com a conta que a coletou.
+
+O que **não** é apagado automaticamente: uma pesagem na fila para uma fazenda
+que sumiu. Ela fica visível com erro de sincronização — descartá-la é decisão
+deliberada de quem opera, nunca do sistema. Coberto por
+`frontend/testes/fantasma.test.ts`.
+
 ### Três regras da sessão que sustentam o modo offline
 
 A sessão é o que permite a fila subir quando o sinal voltar. Perder a sessão no

@@ -153,6 +153,19 @@ export async function gravarMeta(chave: string, valor: unknown): Promise<void> {
   }
 }
 
+/**
+ * Limpa o que é **cache reconstruível** — rebanho e identidade —, preservando a
+ * **fila**, que guarda pesagens ainda não enviadas.
+ *
+ * É o que o "Sair" usa: trocar de conta não pode arrastar o rebanho da anterior
+ * (o "animal fantasma"), mas também não pode descartar coleta que ainda não
+ * subiu. A fila só sai daqui quando o servidor confirma cada item.
+ */
+export async function limparCacheLocal(): Promise<void> {
+  await db.animais.clear();
+  await db.meta.clear();
+}
+
 /** Procura o animal na cópia local — é o que faz a tela de coleta abrir offline. */
 export async function animalPorBrinco(
   brinco: string,

@@ -300,6 +300,31 @@ export async function baixarSessoes(): Promise<void> {
   );
 }
 
+/**
+ * Remove do aparelho o rebanho de fazendas que **não são mais do usuário**.
+ *
+ * Depois de um reset no servidor, ou de perder o acesso a uma fazenda, a cópia
+ * local ainda traz aqueles animais — o "animal fantasma" que aparece na leitura
+ * e no diagnóstico. Aqui eles somem sozinhos no próximo sync com sinal.
+ *
+ * **Só toca no cache (`animais`).** A fila nunca é varrida por fazenda: uma
+ * pesagem não enviada é dado, não cache, e alguém precisa decidir descartá-la de
+ * propósito — o sync não a apaga sozinho.
+ *
+ * Sem sessão conhecida não dá para saber o que é fantasma, então não apaga nada
+ * (evita zerar o rebanho por um estado transitório sem sessão).
+ */
+export async function limparFazendasFantasma(): Promise<void> {
+  const validas = new Set(lerSessoes().map((s) => s.fazenda_id));
+  if (validas.size === 0) return;
+
+  const fantasmas = (await db.animais.toArray())
+    .filter((a) => !validas.has(a.fazenda_id))
+    .map((a) => a.id);
+
+  if (fantasmas.length) await db.animais.bulkDelete(fantasmas);
+}
+
 /** Sobe a fila e atualiza o rebanho — o que se faz assim que há sinal. */
 export async function sincronizarTudo(): Promise<ResumoSync> {
   const resumo = await sincronizar();
@@ -309,6 +334,9 @@ export async function sincronizarTudo(): Promise<ResumoSync> {
       // nova só aparece depois que a sessão dela existe.
       await baixarSessoes();
       await baixarRebanho();
+      // Depois de saber quais fazendas são válidas: remove o rebanho de fazenda
+      // que não é mais do usuário (reset no servidor, acesso perdido).
+      await limparFazendasFantasma();
     } catch {
       // Rebanho desatualizado não impede coletar: é só cache de conveniência.
     }

@@ -10,7 +10,7 @@ import { DiagnosticoOffline } from "@/components/diagnostico-offline";
 import { TrocarFazenda } from "@/components/trocar-fazenda";
 import { TrocarSenha } from "@/components/trocar-senha";
 import { Cabecalho, Cartao } from "@/components/ui";
-import { animaisDaFazenda, lerMeta } from "@/lib/db";
+import { animaisDaFazenda, db, lerMeta, limparCacheLocal } from "@/lib/db";
 import { contarFila } from "@/lib/pesados-hoje";
 import { fazendaAtiva, limparSessao } from "@/lib/sessao";
 import { identidadeGuardada, ROTULO_PAPEL, type Identidade } from "@/lib/sessao-usuario";
@@ -102,7 +102,21 @@ export default function MaisOpcoes() {
       </Cartao>
 
       <button
-        onClick={() => {
+        onClick={async () => {
+          // A fila é dado, não cache: se há pesagem não enviada, avisa antes —
+          // ela continua guardada, mas só sobe com a conta que a coletou.
+          const pendentes = await db.fila.count();
+          if (
+            pendentes > 0 &&
+            !window.confirm(
+              `Você tem ${pendentes} pesagem${pendentes > 1 ? "s" : ""} ainda não enviada${pendentes > 1 ? "s" : ""}. ` +
+                "Ela continua guardada neste aparelho, mas só sobe com a sua conta. Sair mesmo assim?",
+            )
+          ) {
+            return;
+          }
+          // Limpa o rebanho e a identidade (cache reconstruível); a fila fica.
+          await limparCacheLocal();
           limparSessao();
           router.replace("/tecnico/login");
         }}
