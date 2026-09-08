@@ -4,14 +4,14 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import { GraficoDeLinha, type Ponto } from "@/components/grafico";
+import { CurvaDashboard } from "@/components/curva-dashboard";
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { CabecalhoImpressao } from "@/components/impressao";
 import { Lupa, Seta } from "@/components/icones";
 import { Celula, Linha, Tabela } from "@/components/tabela";
 import { Aviso, Cartao, Chip, Esqueleto, EsqueletoKpis, Kpi, Vazio } from "@/components/ui";
 import { apiAuth, ErroApi } from "@/lib/api";
-import { gmd as formatarGmd, mesCurto, peso as formatarPeso } from "@/lib/formato";
+import { gmd as formatarGmd, peso as formatarPeso } from "@/lib/formato";
 
 type Alerta = {
   tipo: "gmd_baixo" | "sem_pesagem" | "perda_de_peso";
@@ -87,10 +87,6 @@ export default function Dashboard() {
     );
   }
 
-  const pontos: Ponto[] = dados.serie.map((p) => ({
-    rotulo: mesCurto(p.data),
-    valor: Number(p.peso_medio),
-  }));
   const abaixoDaMeta = dados.alertas.filter((a) => a.tipo !== "sem_pesagem");
 
   return (
@@ -143,13 +139,7 @@ export default function Dashboard() {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Cartao>
-          <h2 className="font-titulo font-extrabold text-verde">
-            Evolução de peso — últimos 90 dias
-          </h2>
-          <p className="text-xs text-verde/55">Média do rebanho, em kg</p>
-          <div className="mt-4">
-            <GraficoDeLinha pontos={pontos} />
-          </div>
+          <CurvaDashboard serieInicial={dados.serie} />
         </Cartao>
 
         <Cartao>

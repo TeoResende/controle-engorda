@@ -112,3 +112,24 @@ class DetalheAnimal(BaseModel):
     gmd: Decimal | None
     dias_acompanhado: int | None
     pesagens: list[PesagemDaSerie]
+
+
+class PontoAlinhado(BaseModel):
+    # Dia relativo: dias de acompanhamento (desde a 1ª pesagem) ou dias de vida.
+    dia: int
+    peso_kg: Decimal
+
+
+class LinhaAlinhada(BaseModel):
+    rotulo: str
+    animal_id: uuid.UUID | None = None
+    pontos: list[PontoAlinhado]
+
+
+class CurvaAlinhada(BaseModel):
+    # "dof" = dias de acompanhamento; "idade" = dias de vida.
+    eixo: str
+    linhas: list[LinhaAlinhada]
+    # Animais deixados de fora por não terem data de nascimento (só no eixo
+    # "idade"): a tela avisa em vez de escondê-los em silêncio.
+    sem_nascimento: int = 0

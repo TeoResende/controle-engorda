@@ -21,10 +21,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Animal, Fazenda, Lote, Pesagem, StatusAnimal, Usuario
 from app.schemas.metricas import (
     Alerta,
+    CurvaAlinhada,
+    LinhaAlinhada,
     ObservacaoRecente,
     ResumoDoDia,
     DetalheAnimal,
     PesagemDaSerie,
+    PontoAlinhado,
     PontoDaSerie,
     ResumoLote,
     VisaoGeral,
@@ -182,7 +185,13 @@ def _arredondar(valor, casas: int = 2) -> Decimal | None:
     return Decimal(valor).quantize(Decimal(10) ** -casas)
 
 
-async def _serie(sessao: AsyncSession, fazenda_id: uuid.UUID, meses: int) -> list[PontoDaSerie]:
+async def _serie(
+    sessao: AsyncSession,
+    fazenda_id: uuid.UUID,
+    meses: int,
+    desde: date | None = None,
+    ate: date | None = None,
+) -> list[PontoDaSerie]:
     """Peso médio do rebanho por mês — a curva que o cliente vê primeiro.
 
     **Um peso por animal por mês: o último.** Antes a média era sobre *todas* as
@@ -191,14 +200,21 @@ async def _serie(sessao: AsyncSession, fazenda_id: uuid.UUID, meses: int) -> lis
     correção para baixo fazia o rebanho inteiro "emagrecer" no mês. Foi o que
     apareceu como queda irreal na visão geral. O desempate é o mesmo do resto do
     sistema (`data`, `coletado_em`, `id`), para a curva bater com o "peso atual".
+
+    `desde`/`ate` recortam o período (aba "Por data"). Sem eles, a janela é os
+    últimos `meses` meses. Só o gráfico é recortado — os KPIs são fotografia do
+    agora e não mudam com o filtro.
     """
-    corte = date.today() - timedelta(days=31 * meses)
     p = _base_pesagens(fazenda_id).subquery()
     mes = cast(func.date_trunc("month", p.c.data), Date)
 
+    limites = [p.c.data >= (desde or (date.today() - timedelta(days=31 * meses)))]
+    if ate is not None:
+        limites.append(p.c.data <= ate)
+
     ultima_no_mes = (
         select(mes.label("mes"), p.c.animal_id.label("animal_id"), p.c.peso_kg.label("peso_kg"))
-        .where(p.c.data >= corte)
+        .where(*limites)
         .distinct(mes, p.c.animal_id)
         .order_by(mes, p.c.animal_id, p.c.data.desc(), p.c.coletado_em.desc(), p.c.id.desc())
         .subquery()
@@ -500,3 +516,105 @@ async def detalhe_animal(
         dias_acompanhado=dias,
         pesagens=serie,
     )
+
+
+async def curva_alinhada(
+    sessao: AsyncSession,
+    fazenda_id: uuid.UUID,
+    eixo: str = "dof",
+    lote_id: uuid.UUID | None = None,
+    animais_ids: list[uuid.UUID] | None = None,
+    agregar: bool = False,
+) -> CurvaAlinhada:
+    """Curvas de peso alinhadas — o eixo x deixa de ser a data.
+
+    - **`eixo="dof"` (dias de acompanhamento):** dia 0 = a primeira pesagem de
+      cada animal. Todos partem do mesmo ponto, então a janela de engorda fica
+      comparável mesmo entre animais que entraram em datas diferentes. Não
+      depende de data de nascimento.
+    - **`eixo="idade"` (dias de vida):** dia = data da pesagem − data de
+      nascimento. Compara por idade; quem não tem data de nascimento fica de
+      fora e é contado em `sem_nascimento` (a tela avisa).
+
+    Escopo: `animais_ids` (seleção), senão `lote_id` (um lote), senão todos.
+    `agregar=True` devolve uma linha só — a média por faixa — em vez de uma por
+    animal (o que a aba usa em "Todos", para não virar espaguete).
+
+    Dedup de repesagem é o mesmo do resto: um peso por animal por dia, o último
+    (`data`, `coletado_em`, `id`).
+    """
+    p = _base_pesagens(fazenda_id).subquery()
+    filtros = []
+    if animais_ids:
+        filtros.append(p.c.animal_id.in_(animais_ids))
+    elif lote_id is not None:
+        # `lote_id` mora no animal; junta para filtrar.
+        sub = select(Animal.id).where(Animal.lote_id == lote_id).scalar_subquery()
+        filtros.append(p.c.animal_id.in_(sub))
+
+    linhas = list(
+        await sessao.execute(
+            select(
+                p.c.animal_id, Animal.brinco, Animal.data_nascimento,
+                p.c.data, p.c.peso_kg, p.c.coletado_em, p.c.id,
+            )
+            .join(Animal, Animal.id == p.c.animal_id)
+            .where(*filtros)
+            .order_by(p.c.animal_id, p.c.data, p.c.coletado_em, p.c.id)
+        )
+    )
+
+    # Agrupa por animal e deduplica: um peso por dia, o último.
+    por_animal: dict = {}
+    for animal_id, brinco, nasc, data, peso, _coletado, _id in linhas:
+        a = por_animal.setdefault(animal_id, {"brinco": brinco, "nasc": nasc, "dias": {}})
+        a["dias"][data] = peso  # ordenado asc → o último do dia sobrescreve
+
+    sem_nascimento = 0
+    curvas: list[tuple[str, uuid.UUID, list[tuple[int, Decimal]]]] = []
+    for animal_id, a in por_animal.items():
+        dias_pesos = sorted(a["dias"].items())
+        if not dias_pesos:
+            continue
+        if eixo == "idade":
+            if a["nasc"] is None:
+                sem_nascimento += 1
+                continue
+            origem = a["nasc"]
+        else:
+            origem = dias_pesos[0][0]  # primeira pesagem
+        pontos = [((data - origem).days, peso) for data, peso in dias_pesos]
+        # Idade negativa não existe; e uma pesagem antes da 1ª (impossível) idem.
+        pontos = [(d, w) for d, w in pontos if d >= 0]
+        if pontos:
+            curvas.append((a["brinco"], animal_id, pontos))
+
+    curvas.sort(key=lambda c: c[0])
+
+    if agregar:
+        faixa = 30 if eixo == "idade" else 15
+        # Um peso por animal por faixa (o de maior dia na faixa), depois a média.
+        por_faixa: dict[int, list[Decimal]] = {}
+        for _brinco, _id, pontos in curvas:
+            ultimo_na_faixa: dict[int, Decimal] = {}
+            for dia, peso in pontos:
+                ultimo_na_faixa[(dia // faixa) * faixa] = peso
+            for bucket, peso in ultimo_na_faixa.items():
+                por_faixa.setdefault(bucket, []).append(peso)
+        media = [
+            PontoAlinhado(dia=b, peso_kg=_arredondar(sum(v) / len(v)))
+            for b, v in sorted(por_faixa.items())
+        ]
+        linhas_saida = [LinhaAlinhada(rotulo="Média", pontos=media)] if media else []
+    else:
+        # Teto de segurança na resposta; a tela já limita a seleção a 8.
+        linhas_saida = [
+            LinhaAlinhada(
+                rotulo=brinco,
+                animal_id=animal_id,
+                pontos=[PontoAlinhado(dia=d, peso_kg=w) for d, w in pontos],
+            )
+            for brinco, animal_id, pontos in curvas[:12]
+        ]
+
+    return CurvaAlinhada(eixo=eixo, linhas=linhas_saida, sem_nascimento=sem_nascimento)
