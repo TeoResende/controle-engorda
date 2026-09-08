@@ -56,9 +56,15 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
   // --- Por idade ---
   const [eixo, setEixo] = useState<Eixo>("dof");
   const [lotes, setLotes] = useState<Lote[]>([]);
-  const [escopo, setEscopo] = useState<string>("media"); // "media" | lote_id
+  const [escopo, setEscopo] = useState<string>("media"); // "media" | "selecao" | lote_id
   const [curva, setCurva] = useState<CurvaAlinhada | null>(null);
   const [carregando, setCarregando] = useState(false);
+
+  // Seleção de animais específicos (escopo "selecao").
+  const [selecionados, setSelecionados] = useState<{ id: string; brinco: string }[]>([]);
+  const [buscaAnimal, setBuscaAnimal] = useState("");
+  const [resultados, setResultados] = useState<{ id: string; brinco: string }[]>([]);
+  const TETO_SELECAO = 8;
 
   useEffect(() => {
     if (aba === "idade" && lotes.length === 0) {
@@ -66,17 +72,43 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
     }
   }, [aba, lotes.length]);
 
+  useEffect(() => {
+    const termo = buscaAnimal.trim();
+    if (escopo !== "selecao" || termo === "") {
+      setResultados([]);
+      return;
+    }
+    let vivo = true;
+    const t = setTimeout(() => {
+      apiAuth<{ itens: { id: string; brinco: string }[] }>(
+        `/animais?status_animal=ativo&brinco=${encodeURIComponent(termo)}&limite=15`,
+      )
+        .then((r) => vivo && setResultados(r.itens))
+        .catch(() => vivo && setResultados([]));
+    }, 250);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [buscaAnimal, escopo]);
+
   const buscarAlinhada = useCallback(async () => {
+    // Sem nada escolhido, não há o que buscar — a tela pede a seleção.
+    if (escopo === "selecao" && selecionados.length === 0) {
+      setCurva({ eixo, linhas: [], sem_nascimento: 0 });
+      return;
+    }
     setCarregando(true);
     try {
       const q = new URLSearchParams({ eixo });
       if (escopo === "media") q.set("agregar", "true");
+      else if (escopo === "selecao") q.set("animais", selecionados.map((a) => a.id).join(","));
       else q.set("lote_id", escopo);
       setCurva(await apiAuth<CurvaAlinhada>(`/metricas/curva-alinhada?${q}`));
     } finally {
       setCarregando(false);
     }
-  }, [eixo, escopo]);
+  }, [eixo, escopo, selecionados]);
 
   useEffect(() => {
     if (aba === "idade") void buscarAlinhada();
@@ -160,6 +192,7 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
                 className="rounded-lg border border-borda bg-white px-2 py-1.5 text-xs font-bold text-verde"
               >
                 <option value="media">Todos (média)</option>
+                <option value="selecao">Escolher animais…</option>
                 {lotes.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.nome} (animais)
@@ -168,6 +201,58 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
               </select>
             </div>
           </div>
+
+          {escopo === "selecao" && (
+            <div className="mb-3 rounded-xl border border-borda bg-fundo/60 p-3 print:hidden">
+              <div className="flex flex-wrap items-center gap-2">
+                {selecionados.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => setSelecionados((s) => s.filter((x) => x.id !== a.id))}
+                    className="inline-flex items-center gap-1 rounded-full border border-verde bg-lima/20 px-2.5 py-1 text-xs font-bold text-verde"
+                  >
+                    {a.brinco} <span aria-hidden>×</span>
+                  </button>
+                ))}
+                <div className="relative">
+                  <input
+                    value={buscaAnimal}
+                    onChange={(e) => setBuscaAnimal(e.target.value)}
+                    placeholder={selecionados.length ? "adicionar brinco…" : "buscar brinco…"}
+                    disabled={selecionados.length >= TETO_SELECAO}
+                    className="w-36 rounded-lg border border-borda bg-white px-2 py-1 text-xs text-verde outline-none focus:border-verde disabled:opacity-40"
+                  />
+                  {resultados.length > 0 && (
+                    <ul className="absolute z-10 mt-1 max-h-44 w-40 overflow-auto rounded-lg border border-borda bg-white py-1 shadow">
+                      {resultados
+                        .filter((r) => !selecionados.some((s) => s.id === r.id))
+                        .map((r) => (
+                          <li key={r.id}>
+                            <button
+                              onClick={() => {
+                                setSelecionados((s) =>
+                                  s.length >= TETO_SELECAO ? s : [...s, r],
+                                );
+                                setBuscaAnimal("");
+                                setResultados([]);
+                              }}
+                              className="block w-full px-3 py-1.5 text-left text-xs text-verde hover:bg-verde/5"
+                            >
+                              {r.brinco}
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] text-verde/50">
+                {selecionados.length === 0
+                  ? "Busque pelo número do brinco e clique para incluir."
+                  : `${selecionados.length}/${TETO_SELECAO} escolhidos — clique num brinco para tirar.`}
+              </p>
+            </div>
+          )}
 
           {eixo === "idade" && curva && curva.sem_nascimento > 0 && (
             <div className="mb-3">
@@ -180,6 +265,10 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
 
           {carregando && !curva ? (
             <p className="px-4 py-10 text-center text-sm text-verde/50">Carregando…</p>
+          ) : escopo === "selecao" && selecionados.length === 0 ? (
+            <p className="rounded-xl bg-verde/4 px-4 py-10 text-center text-sm text-verde/50">
+              Escolha um ou mais animais acima para desenhar as curvas.
+            </p>
           ) : (
             <GraficoCurvas series={series} passoX={eixo === "dof" ? 15 : 30} />
           )}

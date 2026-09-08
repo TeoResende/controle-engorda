@@ -68,7 +68,10 @@ diferentes, no **mesmo ponto da vida**.
     animais individualmente viraria espaguete.
   - **`lote_id`** → uma linha **por animal** do lote (teto de 12 na resposta; a
     tela deixa a legenda destacar cada um ao passar o mouse).
-  - **`animais=csv`** → seleção específica de ids.
+  - **`animais=csv`** → seleção específica de ids. Na tela é o escopo **"Escolher
+    animais…"**: busca por brinco, chips do que foi escolhido, teto de 8 para
+    continuar legível. Sem nada escolhido, o gráfico pede a seleção em vez de
+    desenhar vazio.
 - **Dedup:** um peso por animal por dia, o último (`data`, `coletado_em`, `id`) —
   a mesma regra do resto, para uma repesagem não virar dois pontos.
 - **Marcação do eixo x:** a cada 15 dias no dof, 30 no idade (`passoX` no
