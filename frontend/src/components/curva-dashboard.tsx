@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GraficoDeLinha, type Ponto } from "@/components/grafico";
 import { CORES_SERIE, GraficoCurvas, type Serie } from "@/components/grafico-curvas";
 import { Aviso } from "@/components/ui";
+import { ModalSelecaoAnimais } from "@/components/modal-selecao-animais";
 import { apiAuth } from "@/lib/api";
 import { mesCurto } from "@/lib/formato";
 
@@ -64,7 +65,18 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
   const [selecionados, setSelecionados] = useState<{ id: string; brinco: string }[]>([]);
   const [buscaAnimal, setBuscaAnimal] = useState("");
   const [resultados, setResultados] = useState<{ id: string; brinco: string }[]>([]);
+  const [modalAberta, setModalAberta] = useState(false);
   const TETO_SELECAO = 8;
+
+  // Marca/desmarca um animal na seleção, respeitando o teto.
+  const alternarAnimal = (a: { id: string; brinco: string }) =>
+    setSelecionados((atual) =>
+      atual.some((x) => x.id === a.id)
+        ? atual.filter((x) => x.id !== a.id)
+        : atual.length >= TETO_SELECAO
+          ? atual
+          : [...atual, a],
+    );
 
   useEffect(() => {
     if (aba === "idade" && lotes.length === 0) {
@@ -222,7 +234,7 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
                     disabled={selecionados.length >= TETO_SELECAO}
                     className="w-36 rounded-lg border border-borda bg-white px-2 py-1 text-xs text-verde outline-none focus:border-verde disabled:opacity-40"
                   />
-                  {resultados.length > 0 && (
+                  {resultados.length > 0 && buscaAnimal.trim() !== "" && (
                     <ul className="absolute z-10 mt-1 max-h-44 w-40 overflow-auto rounded-lg border border-borda bg-white py-1 shadow">
                       {resultados
                         .filter((r) => !selecionados.some((s) => s.id === r.id))
@@ -230,9 +242,7 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
                           <li key={r.id}>
                             <button
                               onClick={() => {
-                                setSelecionados((s) =>
-                                  s.length >= TETO_SELECAO ? s : [...s, r],
-                                );
+                                alternarAnimal(r);
                                 setBuscaAnimal("");
                                 setResultados([]);
                               }}
@@ -245,10 +255,17 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
                     </ul>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setModalAberta(true)}
+                  className="rounded-lg border border-verde px-3 py-1 text-xs font-bold text-verde"
+                >
+                  Ver lista
+                </button>
               </div>
               <p className="mt-2 text-[11px] text-verde/50">
                 {selecionados.length === 0
-                  ? "Busque pelo número do brinco e clique para incluir."
+                  ? "Busque o brinco, ou toque em “Ver lista” para escolher da lista."
                   : `${selecionados.length}/${TETO_SELECAO} escolhidos — clique num brinco para tirar.`}
               </p>
             </div>
@@ -271,6 +288,15 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
             </p>
           ) : (
             <GraficoCurvas series={series} passoX={eixo === "dof" ? 15 : 30} />
+          )}
+
+          {modalAberta && (
+            <ModalSelecaoAnimais
+              selecionados={selecionados}
+              onAlternar={alternarAnimal}
+              teto={TETO_SELECAO}
+              aoFechar={() => setModalAberta(false)}
+            />
           )}
         </>
       )}

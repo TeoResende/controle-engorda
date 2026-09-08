@@ -69,9 +69,11 @@ diferentes, no **mesmo ponto da vida**.
   - **`lote_id`** → uma linha **por animal** do lote (teto de 12 na resposta; a
     tela deixa a legenda destacar cada um ao passar o mouse).
   - **`animais=csv`** → seleção específica de ids. Na tela é o escopo **"Escolher
-    animais…"**: busca por brinco, chips do que foi escolhido, teto de 8 para
-    continuar legível. Sem nada escolhido, o gráfico pede a seleção em vez de
-    desenhar vazio.
+    animais…"**, com duas portas para a **mesma** seleção: a busca por brinco (bom
+    quando se sabe o número) e o botão **"Ver lista"**, que abre uma modal com o
+    rebanho inteiro para ir clicando (`components/modal-selecao-animais.tsx`).
+    Teto de 8 para continuar legível; sem nada escolhido, o gráfico pede a seleção
+    em vez de desenhar vazio.
 - **Dedup:** um peso por animal por dia, o último (`data`, `coletado_em`, `id`) —
   a mesma regra do resto, para uma repesagem não virar dois pontos.
 - **Marcação do eixo x:** a cada 15 dias no dof, 30 no idade (`passoX` no
