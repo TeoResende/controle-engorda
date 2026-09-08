@@ -52,6 +52,15 @@ async def _resolver_animal(sessao: SessaoDep, dados: PesagemCriar) -> Animal:
         animal = await sessao.obter(Animal, dados.animal_id)
         if animal is None:
             raise ErroDePesagem("Animal não encontrado nesta fazenda")
+        # Mesmo por animal_id, um animal que saiu do rebanho não recebe peso: o
+        # caminho por brinco já exigia `ativo`, e o app manda o id da cópia
+        # local, que pode estar velha. Sem esta checagem, um id de animal morto
+        # gravaria uma pesagem que a estatística depois ignora — dado órfão.
+        if animal.status != StatusAnimal.ativo:
+            raise ErroDePesagem(
+                f"O animal do brinco {animal.brinco} está como {animal.status.value} "
+                "e não recebe novas pesagens"
+            )
         return animal
 
     animal = await sessao.session.scalar(

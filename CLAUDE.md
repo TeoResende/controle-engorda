@@ -408,6 +408,24 @@ Tudo calculado no aparelho, então funciona sem sinal — e a tela inicial usa a
 mesma função, porque dois números diferentes para a mesma pergunta fariam o
 técnico duvidar dos dois.
 
+**A conferência é do rebanho vivo.** Animal `morto`, `vendido` ou `transferido`
+saiu do curral: não entra na lista de pesar, nos contadores nem na estatística.
+Isso vale em três camadas, porque `status` e `desativado_em` são ortogonais
+(8.1) e o animal que saiu continua **não-desativado** — então nada disso o
+filtrava de graça:
+
+- **Estatística:** `_base_pesagens` já exige `status = ativo` (média, GMD,
+  alertas, resumo do dia).
+- **Download do rebanho:** `baixarRebanho` pede `?status_animal=ativo`, então a
+  cópia local do técnico não recebe quem saiu; um `baixarRebanho` seguinte
+  substitui a fazenda e remove quem virou morto/vendido depois.
+- **Lista local:** `lerRebanhoEFila` filtra `status === "ativo"` — cobre a
+  janela até o próximo sync, se a cópia ainda estiver velha.
+- **Servidor, ao gravar:** `_resolver_animal` recusa peso para animal não-ativo
+  **também pelo `animal_id`** (o caminho por brinco já exigia ativo). Sem isso, o
+  id de um animal morto vindo de uma cópia velha gravaria uma pesagem órfã que a
+  estatística depois ignora.
+
 **Salvar um peso reflete na cópia do rebanho na hora** (`refletirNoRebanho`, em
 `lib/sync.ts`). Sem isso havia uma janela de dado velho: com sinal, a fila é
 esvaziada segundos depois de salvar, e o item some **antes** de o

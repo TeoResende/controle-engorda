@@ -78,10 +78,14 @@ export async function lerRebanhoEFila(): Promise<{
   const fazenda = fazendaAtiva();
   if (!fazenda) return { animais: [], fila: [] };
 
-  const [animais, fila] = await Promise.all([
+  const [todos, fila] = await Promise.all([
     animaisDaFazenda(fazenda).toArray(),
     filaDaFazenda(fazenda).toArray(),
   ]);
+  // Defesa local: mesmo que uma cópia antiga ainda traga um animal que saiu do
+  // rebanho (morto/vendido/transferido), ele não aparece na conferência. O
+  // download já pede só ativos; isto cobre a janela até o próximo sync.
+  const animais = todos.filter((a) => a.status === "ativo");
   return { animais, fila };
 }
 

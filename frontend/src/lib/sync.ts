@@ -242,7 +242,9 @@ export async function baixarRebanho(): Promise<number> {
 
     for (;;) {
       const pagina = await apiAuth<Pagina>(
-        `/animais?limite=200&deslocamento=${deslocamento}`,
+        // Só o rebanho vivo: um animal morto, vendido ou transferido saiu do
+        // curral — não entra na lista de pesar nem nas contas do técnico.
+        `/animais?status_animal=ativo&limite=200&deslocamento=${deslocamento}`,
         {},
         sessao.fazenda_id,
       );

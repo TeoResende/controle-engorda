@@ -251,3 +251,30 @@ async def test_a_coleta_mais_recente_do_dia_e_a_que_vale(client, dados, logar):
     hc = await logar(dados["cliente_a"])
     detalhe = (await client.get(f"/metricas/animal/{animal_id}", headers=hc)).json()
     assert Decimal(detalhe["peso_atual"]) == Decimal("310.00")
+
+
+async def test_animal_morto_nao_recebe_pesagem_por_animal_id(client, dados, logar):
+    """Um animal que saiu do rebanho (morto/vendido/transferido) não recebe peso
+    novo — nem pelo animal_id que o app manda da cópia local, que pode estar
+    velha. Sem esta checagem, gravaria uma pesagem órfã que a estatística ignora.
+    """
+    h = await logar(dados["admin_a"], dados["fazenda_a"].id)
+    animal_id = str(dados["animal_a"].id)
+
+    await client.patch(f"/animais/{animal_id}", json={"status": "morto"}, headers=h)
+
+    resposta = await client.post("/pesagens", json=payload(animal_id=animal_id), headers=h)
+    assert resposta.status_code == 422
+    assert "morto" in resposta.text.lower()
+
+
+async def test_animal_vendido_fora_da_listagem_padrao_de_pesagem(client, dados, logar):
+    """O app do técnico baixa `?status_animal=ativo`; a listagem padrão traz
+    todos os status para o dashboard, mas o filtro por status tem que funcionar
+    — é o que separa o rebanho vivo do histórico."""
+    h = await logar(dados["admin_a"], dados["fazenda_a"].id)
+    animal_id = str(dados["animal_a"].id)
+    await client.patch(f"/animais/{animal_id}", json={"status": "vendido"}, headers=h)
+
+    ativos = (await client.get("/animais?status_animal=ativo&limite=200", headers=h)).json()
+    assert animal_id not in [a["id"] for a in ativos["itens"]]
