@@ -4,8 +4,25 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Lupa } from "@/components/icones";
 import { apiAuth } from "@/lib/api";
+import { peso as formatarPeso } from "@/lib/formato";
 
-type AnimalItem = { id: string; brinco: string; nome: string | null };
+type AnimalItem = {
+  id: string;
+  brinco: string;
+  nome: string | null;
+  peso_nascimento: string | null;
+  ultimo_peso: string | null;
+};
+
+/** Faixa "nascimento – última leitura", ex.: "55 – 205 kg". Ajuda a decidir
+ *  quem vale plotar sem abrir cada ficha. */
+function faixaDePeso(a: AnimalItem): string {
+  const fim = a.ultimo_peso ? `${formatarPeso(a.ultimo_peso)} kg` : null;
+  const ini = a.peso_nascimento ? formatarPeso(a.peso_nascimento) : null;
+  if (ini && fim) return `${ini} – ${fim}`;
+  if (fim) return fim;
+  return "sem pesagem";
+}
 
 /**
  * Modal para escolher animais do gráfico clicando numa lista.
@@ -122,6 +139,9 @@ export function ModalSelecaoAnimais({
                       </span>
                       <span className="font-bold">{a.brinco}</span>
                       {a.nome && <span className="text-verde/60">· {a.nome}</span>}
+                      <span className="ml-auto shrink-0 text-xs text-verde/55 tabular">
+                        {faixaDePeso(a)}
+                      </span>
                     </button>
                   </li>
                 );

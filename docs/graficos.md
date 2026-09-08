@@ -73,7 +73,9 @@ diferentes, no **mesmo ponto da vida**.
     quando se sabe o número) e o botão **"Ver lista"**, que abre uma modal com o
     rebanho inteiro para ir clicando (`components/modal-selecao-animais.tsx`).
     Teto de 8 para continuar legível; sem nada escolhido, o gráfico pede a seleção
-    em vez de desenhar vazio.
+    em vez de desenhar vazio. Cada linha (modal e busca) mostra a faixa de peso
+    **nascimento – última leitura** (ex.: `55 – 205 kg`), para decidir quem plotar
+    sem abrir a ficha — `peso_nascimento` e `ultimo_peso` já vêm no `GET /animais`.
 - **Dedup:** um peso por animal por dia, o último (`data`, `coletado_em`, `id`) —
   a mesma regra do resto, para uma repesagem não virar dois pontos.
 - **Marcação do eixo x:** a cada 15 dias no dof, 30 no idade (`passoX` no

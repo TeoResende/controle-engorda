@@ -7,7 +7,7 @@ import { CORES_SERIE, GraficoCurvas, type Serie } from "@/components/grafico-cur
 import { Aviso } from "@/components/ui";
 import { ModalSelecaoAnimais } from "@/components/modal-selecao-animais";
 import { apiAuth } from "@/lib/api";
-import { mesCurto } from "@/lib/formato";
+import { mesCurto, peso as formatarPesoBusca } from "@/lib/formato";
 
 type PontoData = { data: string; peso_medio: string; animais: number };
 type Lote = { id: string; nome: string };
@@ -16,6 +16,8 @@ type CurvaAlinhada = {
   linhas: { rotulo: string; animal_id: string | null; pontos: { dia: number; peso_kg: string }[] }[];
   sem_nascimento: number;
 };
+
+type AnimalBusca = { id: string; brinco: string; peso_nascimento: string | null; ultimo_peso: string | null };
 
 type Aba = "data" | "idade";
 type Eixo = "dof" | "idade";
@@ -64,7 +66,7 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
   // Seleção de animais específicos (escopo "selecao").
   const [selecionados, setSelecionados] = useState<{ id: string; brinco: string }[]>([]);
   const [buscaAnimal, setBuscaAnimal] = useState("");
-  const [resultados, setResultados] = useState<{ id: string; brinco: string }[]>([]);
+  const [resultados, setResultados] = useState<AnimalBusca[]>([]);
   const [modalAberta, setModalAberta] = useState(false);
   const TETO_SELECAO = 8;
 
@@ -92,7 +94,7 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
     }
     let vivo = true;
     const t = setTimeout(() => {
-      apiAuth<{ itens: { id: string; brinco: string }[] }>(
+      apiAuth<{ itens: AnimalBusca[] }>(
         `/animais?status_animal=ativo&brinco=${encodeURIComponent(termo)}&limite=15`,
       )
         .then((r) => vivo && setResultados(r.itens))
@@ -246,9 +248,16 @@ export function CurvaDashboard({ serieInicial }: { serieInicial: PontoData[] }) 
                                 setBuscaAnimal("");
                                 setResultados([]);
                               }}
-                              className="block w-full px-3 py-1.5 text-left text-xs text-verde hover:bg-verde/5"
+                              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-verde hover:bg-verde/5"
                             >
-                              {r.brinco}
+                              <span className="font-bold">{r.brinco}</span>
+                              <span className="ml-auto text-verde/55 tabular">
+                                {r.peso_nascimento && r.ultimo_peso
+                                  ? `${formatarPesoBusca(r.peso_nascimento)} – ${formatarPesoBusca(r.ultimo_peso)} kg`
+                                  : r.ultimo_peso
+                                    ? `${formatarPesoBusca(r.ultimo_peso)} kg`
+                                    : "—"}
+                              </span>
                             </button>
                           </li>
                         ))}
