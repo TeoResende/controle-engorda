@@ -70,6 +70,14 @@ export default function Dashboard() {
       });
   }, [router]);
 
+  // Pendências de cadastro: animais sem data/peso de nascimento ficam de fora
+  // da curva por idade. Conta com limite=1, só pelo total.
+  useEffect(() => {
+    apiAuth<{ total: number }>("/animais?sem_nascimento=true&limite=1")
+      .then((r) => setPendentesNascimento(r.total))
+      .catch(() => setPendentesNascimento(0));
+  }, []);
+
   function buscar(evento: React.FormEvent) {
     evento.preventDefault();
     const termo = busca.trim();
