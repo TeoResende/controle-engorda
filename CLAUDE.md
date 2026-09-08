@@ -820,6 +820,11 @@ download) e poucos segundos depois disso, com o modelo em memória.
 
 ## 8.5. Dashboard do cliente (M8)
 
+> **Os gráficos têm doc própria de manutenção:**
+> [`docs/graficos.md`](docs/graficos.md) — componentes, rotas, os dois eixos da
+> curva alinhada (acompanhamento vs idade), pendências de nascimento e as
+> armadilhas já pagas. Mantenha em dia ao mexer em curva.
+
 `GET /metricas/visao-geral` e `GET /metricas/animal/{id}` alimentam as telas 6 e 7.
 
 ### Desempenho: medido com 5.000 animais e 120.000 pesagens
