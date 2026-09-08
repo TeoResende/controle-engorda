@@ -185,3 +185,33 @@ async def test_animal_de_outra_fazenda_nao_e_editavel(client, dados, logar):
         await client.patch(f"/animais/{dados['animal_b'].id}", json={"nome": "x"}, headers=h)
     ).status_code == 404
     assert (await client.delete(f"/animais/{dados['animal_b'].id}", headers=h)).status_code == 404
+
+
+async def test_listagem_traz_ativos_primeiro_depois_agrupados(client, dados, logar):
+    """No dashboard, quem saiu do rebanho continua na lista (é histórico), mas
+    embaixo: os ativos primeiro, os demais agrupados por status. Quem procura um
+    animal a manejar acha os vivos de cara."""
+    h = await logar(dados["admin_a"], dados["fazenda_a"].id)
+
+    brincos = {"A1": "ativo", "A2": "ativo", "V1": "vendido", "M1": "morto", "A3": "ativo"}
+    ids = {}
+    for brinco, st in brincos.items():
+        criado = (await client.post("/animais", json={"brinco": brinco}, headers=h)).json()
+        ids[brinco] = criado["id"]
+        if st != "ativo":
+            await client.patch(f"/animais/{criado['id']}", json={"status": st}, headers=h)
+
+    itens = (await client.get("/animais?brinco=&limite=200", headers=h)).json()["itens"]
+    # só os que criei aqui, na ordem em que vieram
+    ordem = [a["status"] for a in itens if a["brinco"] in brincos]
+
+    # Todos os ativos vêm antes de qualquer não-ativo.
+    ultimo_ativo = max(i for i, st in enumerate(ordem) if st == "ativo")
+    primeiro_inativo = min(i for i, st in enumerate(ordem) if st != "ativo")
+    assert ultimo_ativo < primeiro_inativo
+
+    # E os não-ativos vêm agrupados: cada status num bloco contíguo, sem
+    # intercalar (a ordem entre os grupos é a do ENUM, não importa qual).
+    inativos = [st for st in ordem if st != "ativo"]
+    blocos = [st for i, st in enumerate(inativos) if i == 0 or inativos[i - 1] != st]
+    assert len(blocos) == len(set(inativos))

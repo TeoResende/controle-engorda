@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Fragment, Suspense, useEffect, useState } from "react";
 
 import { BotaoExportar, BotaoImprimir } from "@/components/exportar";
 import { CabecalhoImpressao } from "@/components/impressao";
@@ -116,8 +116,22 @@ function Conteudo() {
         ) : (
           <>
             <Tabela colunas={["Brinco", "Nome", "Raça", "Último peso", "Status", ""]}>
-              {dados.itens.map((a) => (
-                <Linha key={a.id}>
+              {dados.itens.map((a, i) => (
+                <Fragment key={a.id}>
+                  {/* Separador ao virar do rebanho vivo para quem saiu. Os
+                      ativos já vêm primeiro do servidor; aqui só marcamos a
+                      fronteira quando ela cai nesta página. */}
+                  {a.status !== "ativo" && dados.itens[i - 1]?.status === "ativo" && (
+                    <tr className="block md:table-row">
+                      <td
+                        colSpan={6}
+                        className="block pb-1 pt-4 font-titulo text-xs font-bold uppercase tracking-wider text-verde/45 md:table-cell md:px-3"
+                      >
+                        Fora do rebanho
+                      </td>
+                    </tr>
+                  )}
+                <Linha>
                   <Celula principal>{a.brinco}</Celula>
                   <Celula rotulo="Nome">{a.nome ?? "—"}</Celula>
                   <Celula rotulo="Raça">{a.raca ?? "—"}</Celula>
@@ -137,6 +151,7 @@ function Conteudo() {
                     </Link>
                   </Celula>
                 </Linha>
+                </Fragment>
               ))}
             </Tabela>
 

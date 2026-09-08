@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminDep, EscritaDep, SessaoDep
@@ -96,10 +96,16 @@ async def listar(
     )
     recente = select(ultima).where(ultima.c.pos == 1).subquery()
 
+    # Ordem: o rebanho vivo primeiro, depois quem saiu, agrupado por status. Um
+    # animal vendido/morto continua na lista (é histórico), mas embaixo — quem
+    # procura um animal a manejar acha os ativos de cara. A ordenação é
+    # determinística (prioridade, status, brinco) para a paginação não embaralhar
+    # o mesmo animal entre páginas.
+    prioridade = case((Animal.status == StatusAnimal.ativo, 0), else_=1)
     linhas = await sessao.session.execute(
         base.add_columns(recente.c.peso_kg, recente.c.data)
         .join(recente, recente.c.animal_id == Animal.id, isouter=True)
-        .order_by(Animal.brinco)
+        .order_by(prioridade, Animal.status, Animal.brinco)
         .limit(limite)
         .offset(deslocamento)
     )

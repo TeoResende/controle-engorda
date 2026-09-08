@@ -317,6 +317,14 @@ a tela fica em *Configurações → Equipe → Fazendas*, por pessoa.
   cartão do topo; o histórico é consulta, não bloqueio.
 - Listagem de animais é paginada (`{itens, total, limite, deslocamento}`); lotes
   e membros vêm como lista simples, por serem poucos.
+- **Ordem da listagem: rebanho vivo primeiro, quem saiu agrupado depois.** Um
+  animal vendido/morto/transferido continua na lista do dashboard (é histórico),
+  mas embaixo — quem procura um animal a manejar acha os ativos de cara. Ordem
+  determinística: `CASE ativo→0 senão 1`, depois `status`, depois `brinco`, para
+  a paginação não embaralhar o mesmo animal entre páginas (a ordem entre os
+  grupos inativos é a do ENUM, não alfabética). A tela marca a fronteira com um
+  cabeçalho "Fora do rebanho" quando ela cai na página. O **técnico não vê os
+  inativos** de forma alguma: o download dele é `?status_animal=ativo` (8.3).
 
 ## 8.1.1. Fuso horário — "hoje" é o dia da fazenda
 
