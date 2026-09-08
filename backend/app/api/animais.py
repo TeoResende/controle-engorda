@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.deps import AdminDep, EscritaDep, SessaoDep
@@ -59,6 +59,9 @@ async def listar(
     brinco: Annotated[str | None, Query(description="Busca parcial pelo brinco")] = None,
     lote_id: uuid.UUID | None = None,
     status_animal: StatusAnimal | None = None,
+    sem_nascimento: Annotated[
+        bool, Query(description="Só animais sem data ou peso de nascimento")
+    ] = False,
     incluir_inativos: Annotated[bool, Query(description="Traz também os desativados")] = False,
     limite: Annotated[int, Query(ge=1, le=200)] = 50,
     deslocamento: Annotated[int, Query(ge=0)] = 0,
@@ -70,6 +73,12 @@ async def listar(
         filtros.append(Animal.lote_id == lote_id)
     if status_animal is not None:
         filtros.append(Animal.status == status_animal)
+    if sem_nascimento:
+        # Pendência de cadastro: sem esses dados o animal fica de fora da curva
+        # por idade e da projeção de abate. É o que a tela de pendências lista.
+        filtros.append(
+            or_(Animal.data_nascimento.is_(None), Animal.peso_nascimento.is_(None))
+        )
 
     base = sessao.selecionar(Animal, incluir_inativos=incluir_inativos).where(*filtros)
     total = await sessao.session.scalar(

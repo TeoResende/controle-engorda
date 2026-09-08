@@ -34,6 +34,7 @@ function Conteudo() {
   const [dados, setDados] = useState<Pagina | null>(null);
 
   const lote = parametros.get("lote");
+  const semNascimento = parametros.get("sem_nascimento") === "1";
 
   useEffect(() => {
     const consulta = new URLSearchParams({
@@ -42,11 +43,12 @@ function Conteudo() {
     });
     if (busca.trim()) consulta.set("brinco", busca.trim());
     if (lote) consulta.set("lote_id", lote);
+    if (semNascimento) consulta.set("sem_nascimento", "true");
 
     apiAuth<Pagina>(`/animais?${consulta}`)
       .then(setDados)
       .catch(() => setDados({ itens: [], total: 0 }));
-  }, [busca, pagina, lote]);
+  }, [busca, pagina, lote, semNascimento]);
 
   const paginas = dados ? Math.ceil(dados.total / POR_PAGINA) : 0;
 
@@ -71,7 +73,7 @@ function Conteudo() {
         <div>
           <h1 className="font-titulo text-2xl font-extrabold text-verde">Animais</h1>
           <p className="text-sm text-verde/60">
-            {dados ? `${dados.total} animais ativos` : "Carregando…"}
+            {dados ? `${dados.total} animais${semNascimento ? " sem data/peso de nascimento" : " ativos"}` : "Carregando…"}
             {lote && " neste lote"}
           </p>
         </div>

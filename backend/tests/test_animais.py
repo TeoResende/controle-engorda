@@ -215,3 +215,25 @@ async def test_listagem_traz_ativos_primeiro_depois_agrupados(client, dados, log
     inativos = [st for st in ordem if st != "ativo"]
     blocos = [st for i, st in enumerate(inativos) if i == 0 or inativos[i - 1] != st]
     assert len(blocos) == len(set(inativos))
+
+
+async def test_filtro_sem_nascimento_lista_pendencias(client, dados, logar):
+    """Pendências de cadastro: animais sem data OU peso de nascimento. É o que
+    o aviso do dashboard e a curva por idade usam para não esconder o buraco."""
+    h = await logar(dados["admin_a"], dados["fazenda_a"].id)
+    completo = (await client.post(
+        "/animais",
+        json={"brinco": "N100", "data_nascimento": "2025-01-01", "peso_nascimento": "34"},
+        headers=h,
+    )).json()
+    so_data = (await client.post(
+        "/animais", json={"brinco": "N101", "data_nascimento": "2025-01-01"}, headers=h
+    )).json()
+    nada = (await client.post("/animais", json={"brinco": "N102"}, headers=h)).json()
+
+    pend = (await client.get("/animais?sem_nascimento=true&limite=200", headers=h)).json()
+    ids = [a["id"] for a in pend["itens"]]
+
+    assert completo["id"] not in ids       # tem os dois → fora
+    assert so_data["id"] in ids            # falta o peso → pendência
+    assert nada["id"] in ids               # falta tudo → pendência

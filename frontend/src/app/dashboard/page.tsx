@@ -48,6 +48,7 @@ type VisaoGeral = {
 /** Tela 6 — Visão geral. */
 export default function Dashboard() {
   const router = useRouter();
+  const [pendentesNascimento, setPendentesNascimento] = useState(0);
   const [dados, setDados] = useState<VisaoGeral | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
@@ -136,6 +137,16 @@ export default function Dashboard() {
           tom="alerta"
         />
       </section>
+
+      {pendentesNascimento > 0 && (
+        <Link href="/dashboard/animais?sem_nascimento=1" className="print:hidden">
+          <Aviso tom="atencao">
+            {pendentesNascimento} animal{pendentesNascimento > 1 ? "is" : ""} sem data ou peso de
+            nascimento. Preencha para incluí-los na curva por idade e na projeção de abate.
+            <span className="ml-1 font-bold underline">Ver e corrigir →</span>
+          </Aviso>
+        </Link>
+      )}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Cartao>
