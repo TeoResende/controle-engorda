@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { BarraLateral, BarraMovel } from "@/components/barra-lateral";
 import { AplicarMarca } from "@/components/aplicar-marca";
-import { lerSessao } from "@/lib/sessao";
+import { aoMudarSessao, lerSessao } from "@/lib/sessao";
 
 /**
  * Área do cliente.
@@ -22,6 +22,17 @@ export default function LayoutDashboard({ children }: { children: React.ReactNod
 
   // Navegar fecha a gaveta: no celular ela cobre a tela inteira.
   useEffect(() => setMenuAberto(false), [caminho]);
+
+  // Sessão vencida no meio do uso manda ao login na hora. A guarda abaixo só
+  // roda na troca de página; sem isto, um 401 numa tela qualquer deixava o
+  // cliente parado numa tela vazia em vez de pedir login de novo.
+  useEffect(() => {
+    return aoMudarSessao(() => {
+      if (caminho !== "/dashboard/login" && !lerSessao()) {
+        router.replace("/dashboard/login");
+      }
+    });
+  }, [caminho, router]);
 
   useEffect(() => {
     if (caminho === "/dashboard/login") {

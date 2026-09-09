@@ -53,8 +53,25 @@ function ler(): Guardado {
   return { sessoes: [], ativa: null };
 }
 
+/** Evento disparado a cada mudança de sessão. As telas guardadas (layout do
+ *  dashboard) escutam para reagir quando a sessão vence no meio do uso — sem
+ *  isso, o 401 de uma chamada qualquer não mandava o cliente ao login, porque a
+ *  guarda de rota só roda na troca de página. */
+const EVENTO_SESSAO = "engorda:sessao-mudou";
+
+function avisarMudanca(): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVENTO_SESSAO));
+}
+
+export function aoMudarSessao(ouvinte: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(EVENTO_SESSAO, ouvinte);
+  return () => window.removeEventListener(EVENTO_SESSAO, ouvinte);
+}
+
 function gravar(estado: Guardado): void {
   localStorage.setItem(CHAVE, JSON.stringify(estado));
+  avisarMudanca();
 }
 
 /** A sessão da fazenda ativa. */
@@ -131,4 +148,5 @@ export function esquecerSessao(fazenda_id: string): void {
 export function limparSessao(): void {
   localStorage.removeItem(CHAVE);
   localStorage.removeItem(CHAVE_ANTIGA);
+  avisarMudanca();
 }

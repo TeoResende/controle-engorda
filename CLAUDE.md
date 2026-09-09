@@ -1483,6 +1483,16 @@ existem porque as três já foram violadas:
 
 Cobertas por teste em `frontend/testes/api.test.ts`.
 
+**Sessão vencida no dashboard manda ao login — em qualquer tela.** A guarda de
+rota do layout só roda na troca de página; um 401 no meio do uso (refresh
+recusado → `esquecerSessao`/`limparSessao`) deixava o cliente numa tela vazia,
+porque só a visão geral tratava o 401. Agora toda mudança de sessão dispara um
+evento (`aoMudarSessao`, em `lib/sessao.ts`) e o layout do dashboard escuta:
+sem sessão restante, `router.replace("/dashboard/login")`. Cobre as 8 telas de
+uma vez; sessão válida não é expulsa (o listener só age quando `lerSessao()` é
+nulo). Verificado no navegador em animais/observações/lotes (antes engoliam o
+401).
+
 ## 9. Fora de escopo no MVP (não implementar ainda)
 
 Suporte iOS/QR Code (Jornada 2), módulo de saúde/vacinação, genealogia completa, controle de venda/abate, integração com balanças eletrônicas, uso de `pgvector`.
